@@ -42,7 +42,13 @@ function checkRateLimit(clientIp) {
   record.lastRequest = now;
   ipRequestHistory.set(clientIp, record);
 
+  const remaining = MAX_REQUESTS_PER_MINUTE - record.timestamps.length;
+  return { allowed: true, remaining };
+}
+
+
 // Fetch verified real-time stock quote from financial market feeds
+
 async function fetchLiveMarketQuote(rawTicker) {
   const cleanTicker = (rawTicker || '').replace(/^\$/, '').trim().toUpperCase();
   try {
