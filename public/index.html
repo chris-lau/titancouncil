@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Market Sages — AI Stock Investment Council (US & Canadian TSE)</title>
+  <meta name="description" content="Summon 13 legendary investors to analyze any US or Canadian TSE stock. Zero setup, bilingual English & Chinese interface for Cloudflare.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Ambient background glow effects -->
+  <div class="ambient-glow glow-top-left"></div>
+  <div class="ambient-glow glow-bottom-right"></div>
+
+  <!-- Main App Shell -->
+  <div class="app-layout">
+    <!-- Top Nav Header (Mockup Layout with Language Switcher) -->
+    <header class="app-header">
+      <div class="header-brand">
+        <h1 class="brand-title">Market Sages</h1>
+        <span class="brand-subtitle" id="i18nSubtitle">AI Stock Investment Council</span>
+      </div>
+
+      <!-- Integrated Mockup Search Capsule -->
+      <div class="header-search-capsule">
+        <div class="capsule-search-group">
+          <span class="search-lens-icon">🔍</span>
+          <div class="search-text-fields">
+            <input 
+              type="text" 
+              id="tickerInput" 
+              value="$NVDA"
+              placeholder="Ticker ($NVDA, SHOP.TO, RY.TO)..." 
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Stock ticker"
+            >
+            <span class="company-name-tag" id="headerCompanyName">NVIDIA Corporation</span>
+          </div>
+          <button id="summonBtn" class="summon-capsule-btn">
+            <span class="btn-avatar-icon">🧙‍♂️</span>
+            <span class="btn-label" id="i18nSummonBtn">Summon Council</span>
+          </button>
+        </div>
+
+        <!-- Language Switcher Pill Button (English / 中文) -->
+        <button id="langToggleBtn" class="lang-toggle-btn" title="Switch Language / 切换语言">
+          <span class="lang-globe">🌐</span>
+          <span id="langCurrentText">中文</span>
+        </button>
+
+        <button id="settingsBtn" class="header-icon-btn" title="Settings & API Key" aria-label="Settings">
+          ⚙️
+        </button>
+      </div>
+    </header>
+
+    <!-- Filter Pills Toolbar -->
+    <section class="filter-bar-section">
+      <div class="mockup-filter-pills" id="filterPillsContainer">
+        <button class="mockup-pill active" data-filter="all">
+          <span class="pill-svg">⊞</span>
+          <span id="i18nAllSages">All 13 Sages</span>
+        </button>
+        <button class="mockup-pill" data-filter="value">
+          <span class="pill-svg">💲</span>
+          <span id="i18nValueCouncil">Value Council</span>
+        </button>
+        <button class="mockup-pill" data-filter="growth">
+          <span class="pill-svg">📈</span>
+          <span id="i18nGrowthTech">Growth & Tech</span>
+        </button>
+        <button class="mockup-pill" data-filter="risk">
+          <span class="pill-svg">📉</span>
+          <span id="i18nRiskTail">Risk & Tail Risk</span>
+        </button>
+        <button class="mockup-pill" id="comparePillBtn" data-filter="compare">
+          <span class="pill-svg">⇄</span>
+          <span id="i18nCompare">Compare</span>
+        </button>
+      </div>
+
+      <!-- Quick Ticker Presets (US + Canadian TSE / TSX Stocks) -->
+      <div class="secondary-controls">
+        <div class="quick-presets">
+          <span class="presets-label" id="i18nPresetsLabel">US & TSE:</span>
+          <div class="preset-pills">
+            <button class="preset-pill" data-ticker="NVDA">$NVDA</button>
+            <button class="preset-pill" data-ticker="AAPL">$AAPL</button>
+            <button class="preset-pill" data-ticker="TSLA">$TSLA</button>
+            <button class="preset-pill tse-badge-pill" data-ticker="SHOP.TO" title="Toronto Stock Exchange">$SHOP.TO 🍁</button>
+            <button class="preset-pill tse-badge-pill" data-ticker="RY.TO" title="Royal Bank of Canada">$RY.TO 🍁</button>
+            <button class="preset-pill tse-badge-pill" data-ticker="ENB.TO" title="Enbridge Inc.">$ENB.TO 🍁</button>
+            <button class="preset-pill tse-badge-pill" data-ticker="CSU.TO" title="Constellation Software">$CSU.TO 🍁</button>
+          </div>
+        </div>
+
+        <button class="drawer-toggle-small" id="drawerToggleBtn" aria-expanded="false">
+          <span id="i18nPasteFinancials">📊 Paste Financials</span>
+        </button>
+      </div>
+
+      <!-- Expandable Financials Drawer -->
+      <div class="drawer-content hidden" id="drawerContent">
+        <textarea 
+          id="financialsInput" 
+          placeholder="Optional: Paste raw earnings figures, TSE CAD numbers, 10-K notes, or ratios here (e.g. Revenue $60.9B, P/E 55x, FCF $27B, Gross Margin 74.6%)..."
+          rows="2"
+        ></textarea>
+      </div>
+    </section>
+
+    <!-- Main Content: 2-Column Split matching Mockup -->
+    <main class="council-workspace">
+      <!-- Left Column: Sage Verdict Cards Grid -->
+      <section class="sages-column">
+        <div class="column-header">
+          <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Sage Verdict Cards</h2>
+          <span class="council-tally" id="councilTallyText">13 Sages Deliberating</span>
+        </div>
+
+        <!-- Deliberation Progress Bar -->
+        <div class="deliberation-progress hidden" id="deliberationProgress">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+          </div>
+          <span class="progress-status-text" id="statusMessage">Summoning council...</span>
+        </div>
+
+        <!-- 2-Column Grid of Sage Cards -->
+        <div class="sage-cards-grid" id="sageCardsGrid">
+          <!-- Dynamically Populated by app.js -->
+        </div>
+      </section>
+
+      <!-- Right Column: Sticky Portfolio Manager Verdict Sidebar -->
+      <aside class="sidebar-column">
+        <div class="pm-verdict-panel" id="pmVerdictPanel">
+          <h3 class="pm-panel-title" id="i18nPMTitle">Portfolio Manager Verdict</h3>
+
+          <!-- Dual Speedometer / Arc Gauges (Exact Mockup Match) -->
+          <div class="dual-gauges-container">
+            <!-- Left Gauge: Portfolio Alignment / Risk -->
+            <div class="gauge-card">
+              <div class="speedometer-svg-wrap">
+                <svg viewBox="0 0 100 55" class="speedometer-svg">
+                  <!-- Arc background gradient -->
+                  <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
+                  <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#riskGrad)" stroke-width="8" stroke-dasharray="126" stroke-dashoffset="40" stroke-linecap="round" />
+                  <!-- Needle -->
+                  <line id="riskNeedle" x1="50" y1="50" x2="35" y2="20" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="50" cy="50" r="4" fill="#ffffff" />
+                  <defs>
+                    <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#10b981" />
+                      <stop offset="50%" stop-color="#f59e0b" />
+                      <stop offset="100%" stop-color="#ef4444" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <div class="gauge-label-text">
+                <span class="gauge-primary-val" id="riskLevelText">Moderate Risk</span>
+                <span class="gauge-sub-val" id="i18nPortfolioAlignment">Portfolio Alignment</span>
+              </div>
+            </div>
+
+            <!-- Right Gauge: Trade Horizon -->
+            <div class="gauge-card">
+              <div class="speedometer-svg-wrap">
+                <svg viewBox="0 0 100 55" class="speedometer-svg">
+                  <!-- Arc background gradient -->
+                  <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
+                  <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#horizonGrad)" stroke-width="8" stroke-dasharray="126" stroke-dashoffset="30" stroke-linecap="round" />
+                  <!-- Needle -->
+                  <line id="horizonNeedle" x1="50" y1="50" x2="65" y2="20" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
+                  <circle cx="50" cy="50" r="4" fill="#ffffff" />
+                  <defs>
+                    <linearGradient id="horizonGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#059669" />
+                      <stop offset="50%" stop-color="#0284c7" />
+                      <stop offset="100%" stop-color="#2563eb" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <div class="gauge-label-text">
+                <span class="gauge-primary-val" id="horizonValText">Medium Term</span>
+                <span class="gauge-sub-val" id="i18nHorizon">Horizon</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trade Horizon Slider Bar -->
+          <div class="trade-horizon-section">
+            <h4 class="section-label" id="i18nTradeHorizon">Trade Horizon</h4>
+            <div class="horizon-range-bar">
+              <div class="range-dot start-dot"></div>
+              <div class="range-line-glow"></div>
+              <div class="range-dot stop-dot"></div>
+            </div>
+            <div class="range-legend">
+              <div class="legend-entry">
+                <span class="legend-title" id="i18nEntryZone">Entry Zone:</span>
+                <span class="legend-price" id="entryZoneText">$780 - $810</span>
+              </div>
+              <div class="legend-stop">
+                <span class="legend-title" id="i18nStopLoss">Stop Loss:</span>
+                <span class="legend-price text-danger" id="stopLossText">$715</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Conviction Score Box -->
+          <div class="conviction-score-box">
+            <span class="conviction-title" id="i18nConvictionScore">Conviction Score</span>
+            <div class="conviction-value-display" id="convictionValueText">High (84%)</div>
+            <div class="action-badge-box" id="actionBadgeBox">
+              ACTION: ACCUMULATE ON DIPS
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="sidebar-action-buttons">
+            <button id="copyReportBtn" class="sidebar-btn">
+              <span id="i18nCopyMarkdown">📋 Copy Markdown</span>
+            </button>
+            <button id="printReportBtn" class="sidebar-btn">
+              <span id="i18nPrintPdf">🖨️ Print / PDF</span>
+            </button>
+          </div>
+
+          <div class="sidebar-disclaimer" id="i18nDisclaimer">
+            ⚠️ Educational purposes only. Not financial advice.
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="settingsModalTitle">⚙️ Application Settings</h3>
+        <button id="closeSettingsBtn" class="modal-close-btn" aria-label="Close settings">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="providerSelect">AI Engine / Provider</label>
+          <select id="providerSelect" class="form-select">
+            <option value="demo">Demo Simulation Mode (Exact Signal Rules)</option>
+            <option value="cloudflare">Cloudflare Workers AI (Serverless Edge)</option>
+            <option value="gemini">Google Gemini API</option>
+            <option value="openai">OpenAI API (GPT-4o / GPT-4o-mini)</option>
+            <option value="anthropic">Anthropic Claude API</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="apiKeyGroup">
+          <label for="apiKeyInput">API Key (Optional / Client BYOK)</label>
+          <input 
+            type="password" 
+            id="apiKeyInput" 
+            placeholder="Paste API key here (saved in local browser storage)..."
+            autocomplete="off"
+          >
+          <span class="field-hint">Leave blank to use Cloudflare Worker environment secret or Demo Mode.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="languageSelect">Default Language / 默认语言</label>
+          <select id="languageSelect" class="form-select">
+            <option value="en">English</option>
+            <option value="zh">简体中文 / 繁體中文</option>
+          </select>
+        </div>
+
+        <div class="modal-footer">
+          <button id="saveSettingsBtn" class="primary-btn">Save & Apply / 保存并应用</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

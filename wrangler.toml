@@ -1,0 +1,11 @@
+name = "market-sages"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "public"
+
+[ai]
+binding = "AI"
+
+# Optional Cloudflare secrets (can also be set via Cloudflare Dashboard):
+# [vars]
+# GEMINI_API_KEY = ""
+# OPENAI_API_KEY = ""

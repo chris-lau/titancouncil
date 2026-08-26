@@ -1,0 +1,16 @@
+{
+  "name": "market-sages-web",
+  "version": "0.3.2",
+  "description": "Sleek, modern web application for Market Sages on Cloudflare Pages",
+  "scripts": {
+    "dev": "npx wrangler pages dev public",
+    "deploy": "npx wrangler pages deploy public --project-name=market-sages",
+    "preview": "python3 -m http.server 3000 --directory public"
+  },
+  "keywords": ["market-sages", "cloudflare-pages", "investing", "ai-council"],
+  "author": "hyhmrright",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.109.2"
+  }
+}
