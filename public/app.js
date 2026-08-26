@@ -17,7 +17,6 @@ const elements = {
   tickerInput: document.getElementById('tickerInput'),
   headerCompanyName: document.getElementById('headerCompanyName'),
   summonBtn: document.getElementById('summonBtn'),
-  titansDirectoryBtn: document.getElementById('titansDirectoryBtn'),
   filterHelpBtn: document.getElementById('filterHelpBtn'),
   filterHelpModal: document.getElementById('filterHelpModal'),
   closeFilterHelpBtn: document.getElementById('closeFilterHelpBtn'),
@@ -94,12 +93,6 @@ function attachEventListeners() {
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
   });
 
-  // 13 Titans Directory Button
-  if (elements.titansDirectoryBtn) {
-    elements.titansDirectoryBtn.addEventListener('click', () => {
-      openSageProfile(state.activeProfileId || 'buffett');
-    });
-  }
 
   // Titan Profile Modal Close Events
   if (elements.closeProfileBtn) {
