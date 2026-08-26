@@ -20,6 +20,10 @@ const elements = {
   tickerInput: document.getElementById('tickerInput'),
   headerCompanyName: document.getElementById('headerCompanyName'),
   summonBtn: document.getElementById('summonBtn'),
+  filterHelpBtn: document.getElementById('filterHelpBtn'),
+  filterHelpModal: document.getElementById('filterHelpModal'),
+  closeFilterHelpBtn: document.getElementById('closeFilterHelpBtn'),
+  gotItBtn: document.getElementById('gotItBtn'),
   langToggleBtn: document.getElementById('langToggleBtn'),
   langCurrentText: document.getElementById('langCurrentText'),
   settingsBtn: document.getElementById('settingsBtn'),
@@ -89,6 +93,14 @@ function attachEventListeners() {
   elements.tickerInput.addEventListener('input', e => {
     const { cleanTicker } = parseInputQuery(e.target.value);
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
+  });
+
+  // Filter Help Modal (💡 Button)
+  elements.filterHelpBtn.addEventListener('click', () => elements.filterHelpModal.classList.remove('hidden'));
+  elements.closeFilterHelpBtn.addEventListener('click', () => elements.filterHelpModal.classList.add('hidden'));
+  elements.gotItBtn.addEventListener('click', () => elements.filterHelpModal.classList.add('hidden'));
+  elements.filterHelpModal.addEventListener('click', e => {
+    if (e.target === elements.filterHelpModal) elements.filterHelpModal.classList.add('hidden');
   });
 
   // Preset Ticker Buttons (US & Canadian TSE)

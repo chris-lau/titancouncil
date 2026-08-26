@@ -1129,3 +1129,64 @@ body {
     max-width: 90px;
   }
 }
+
+/* Filter Guide Modal Styles */
+.help-section {
+  margin-bottom: 20px;
+}
+
+.help-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 8px;
+}
+
+.help-desc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.help-list strong {
+  color: #f1f5f9;
+}
+
+.help-code-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-code-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.help-code-list code {
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #38bdf8;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

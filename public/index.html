@@ -33,7 +33,7 @@
               type="text" 
               id="tickerInput" 
               value="$NVDA"
-              placeholder="Ticker ($NVDA, SHOP.TO, RY.TO)..." 
+              placeholder="Ticker ($NVDA, SHOP.TO, RY.TO, NVDA --value)..." 
               autocomplete="off"
               spellcheck="false"
               aria-label="Stock ticker"
@@ -45,6 +45,11 @@
             <span class="btn-label" id="i18nSummonBtn">Summon Council</span>
           </button>
         </div>
+
+        <!-- Filter Guide / Help Button -->
+        <button id="filterHelpBtn" class="header-icon-btn" title="Filter & Command Guide / 指令指南" aria-label="Filter Guide">
+          💡
+        </button>
 
         <!-- Language Switcher Pill Button (English / 中文) -->
         <button id="langToggleBtn" class="lang-toggle-btn" title="Switch Language / 切换语言">
@@ -61,23 +66,23 @@
     <!-- Filter Pills Toolbar -->
     <section class="filter-bar-section">
       <div class="mockup-filter-pills" id="filterPillsContainer">
-        <button class="mockup-pill active" data-filter="all">
+        <button class="mockup-pill active" data-filter="all" title="Deliberate with all 13 Titans">
           <span class="pill-svg">⊞</span>
           <span id="i18nAllSages">All 13 Titans</span>
         </button>
-        <button class="mockup-pill" data-filter="value">
+        <button class="mockup-pill" data-filter="value" title="Buffett, Munger, Graham, Pabrai, Burry">
           <span class="pill-svg">💲</span>
           <span id="i18nValueCouncil">Value Council</span>
         </button>
-        <button class="mockup-pill" data-filter="growth">
+        <button class="mockup-pill" data-filter="growth" title="Lynch, Wood, Druckenmiller, Fisher">
           <span class="pill-svg">📈</span>
           <span id="i18nGrowthTech">Growth & Tech</span>
         </button>
-        <button class="mockup-pill" data-filter="risk">
+        <button class="mockup-pill" data-filter="risk" title="Taleb, Damodaran">
           <span class="pill-svg">📉</span>
           <span id="i18nRiskTail">Risk & Tail Risk</span>
         </button>
-        <button class="mockup-pill" id="comparePillBtn" data-filter="compare">
+        <button class="mockup-pill" id="comparePillBtn" data-filter="compare" title="Side-by-side stock comparison">
           <span class="pill-svg">⇄</span>
           <span id="i18nCompare">Compare</span>
         </button>
@@ -147,10 +152,8 @@
             <div class="gauge-card">
               <div class="speedometer-svg-wrap">
                 <svg viewBox="0 0 100 55" class="speedometer-svg">
-                  <!-- Arc background gradient -->
                   <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
                   <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#riskGrad)" stroke-width="8" stroke-dasharray="126" stroke-dashoffset="40" stroke-linecap="round" />
-                  <!-- Needle -->
                   <line id="riskNeedle" x1="50" y1="50" x2="35" y2="20" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" />
                   <circle cx="50" cy="50" r="4" fill="#ffffff" />
                   <defs>
@@ -172,10 +175,8 @@
             <div class="gauge-card">
               <div class="speedometer-svg-wrap">
                 <svg viewBox="0 0 100 55" class="speedometer-svg">
-                  <!-- Arc background gradient -->
                   <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
                   <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="url(#horizonGrad)" stroke-width="8" stroke-dasharray="126" stroke-dashoffset="30" stroke-linecap="round" />
-                  <!-- Needle -->
                   <line id="horizonNeedle" x1="50" y1="50" x2="65" y2="20" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" />
                   <circle cx="50" cy="50" r="4" fill="#ffffff" />
                   <defs>
@@ -239,6 +240,61 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- Filter & Command Guide Modal -->
+  <div class="modal-backdrop hidden" id="filterHelpModal" role="dialog" aria-modal="true" aria-labelledby="filterHelpModalTitle">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="filterHelpModalTitle">💡 TitanCouncil Filter & Command Guide</h3>
+        <button id="closeFilterHelpBtn" class="modal-close-btn" aria-label="Close guide">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h4 class="help-section-title">1. One-Click Filter Pills (Visual)</h4>
+          <ul class="help-list">
+            <li><strong>⊞ All 13 Titans</strong>: Deliberates with all 13 legendary investors.</li>
+            <li><strong>💲 Value Council</strong>: Buffett, Munger, Graham, Pabrai, Burry.</li>
+            <li><strong>📈 Growth & Tech</strong>: Lynch, Wood, Druckenmiller, Fisher.</li>
+            <li><strong>📉 Risk & Tail Risk</strong>: Taleb, Damodaran.</li>
+            <li><strong>⇄ Compare</strong>: Compares two stocks side-by-side ($NVDA vs $SHOP.TO).</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4 class="help-section-title">2. Typed Command Flags (Search Bar)</h4>
+          <p class="help-desc">Type flags directly after the ticker symbol:</p>
+          <ul class="help-code-list">
+            <li><code>NVDA --value</code> <span>Activates Value Council filter</span></li>
+            <li><code>SHOP.TO --growth</code> <span>Activates Growth & Tech filter</span></li>
+            <li><code>RY.TO --risk</code> <span>Activates Risk & Valuation filter</span></li>
+            <li><code>AAPL --all</code> <span>Consults all 13 Titans</span></li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4 class="help-section-title">3. Specific Titan @Mentions</h4>
+          <ul class="help-code-list">
+            <li><code>NVDA @buffett @taleb</code> <span>Consults only Buffett and Taleb</span></li>
+            <li><code>SHOP.TO @munger @burry @wood</code> <span>Consults only Munger, Burry, and Wood</span></li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h4 class="help-section-title">4. Canadian Toronto Stock Exchange (TSE/TSX)</h4>
+          <ul class="help-code-list">
+            <li><code>SHOP.TO</code> <span>Shopify Inc. (CAD valuation)</span></li>
+            <li><code>RY.TO</code> <span>Royal Bank of Canada</span></li>
+            <li><code>CSU.TO</code> <span>Constellation Software</span></li>
+            <li><code>ENB.TO</code> <span>Enbridge Inc.</span></li>
+          </ul>
+        </div>
+
+        <div class="modal-footer">
+          <button id="gotItBtn" class="primary-btn">Got It / 了解</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Settings Modal -->
