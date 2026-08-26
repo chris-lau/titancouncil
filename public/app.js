@@ -32,6 +32,11 @@ const elements = {
   statusMessage: document.getElementById('statusMessage'),
   progressBarFill: document.getElementById('progressBarFill'),
   sageCardsGrid: document.getElementById('sageCardsGrid'),
+  pmAwaitingCard: document.getElementById('pmAwaitingCard'),
+  pmVerdictPanel: document.getElementById('pmVerdictPanel'),
+  i18nPmAwaitingTitle: document.getElementById('i18nPmAwaitingTitle'),
+  i18nPmAwaitingDesc: document.getElementById('i18nPmAwaitingDesc'),
+  pmStatusBadgeText: document.getElementById('pmStatusBadgeText'),
   riskNeedle: document.getElementById('riskNeedle'),
   riskLevelText: document.getElementById('riskLevelText'),
   horizonNeedle: document.getElementById('horizonNeedle'),
@@ -71,6 +76,7 @@ const elements = {
   i18nPrintPdf: document.getElementById('i18nPrintPdf'),
   i18nDisclaimer: document.getElementById('i18nDisclaimer')
 };
+
 
 // Initialize Application
 function init() {
@@ -203,10 +209,16 @@ function applyLanguage(lang) {
   if (elements.instructionsInput) elements.instructionsInput.placeholder = dict.instructionsPlaceholder;
   if (elements.i18nVerdictCardsTitle) elements.i18nVerdictCardsTitle.textContent = dict.verdictCardsTitle;
   if (elements.i18nPMTitle) elements.i18nPMTitle.textContent = dict.pmTitle;
+  if (elements.i18nPmAwaitingTitle) elements.i18nPmAwaitingTitle.textContent = dict.pmAwaitingTitle;
+  if (elements.i18nPmAwaitingDesc) elements.i18nPmAwaitingDesc.textContent = dict.pmAwaitingDesc;
+  if (elements.pmStatusBadgeText) {
+    elements.pmStatusBadgeText.textContent = state.isAnalyzing ? dict.pmAwaitingAnalyzing : dict.pmAwaitingReady;
+  }
 
   if (elements.i18nPortfolioAlignment) elements.i18nPortfolioAlignment.textContent = dict.portfolioAlignment;
   if (elements.i18nHorizon) elements.i18nHorizon.textContent = dict.horizon;
   if (elements.i18nTradeHorizon) elements.i18nTradeHorizon.textContent = dict.tradeHorizon;
+
   if (elements.i18nEntryZone) elements.i18nEntryZone.textContent = dict.entryZone;
   if (elements.i18nStopLoss) elements.i18nStopLoss.textContent = dict.stopLoss;
   if (elements.i18nConvictionScore) elements.i18nConvictionScore.textContent = dict.convictionScore;
@@ -319,9 +331,18 @@ async function handleSummon() {
     : `Summoning ${state.selectedSageIds.size} council members for ${ticker}...`;
   elements.progressBarFill.style.width = '25%';
 
+  // Keep Portfolio Manager sidebar in Awaiting State while Council deliberates
+  if (elements.pmAwaitingCard) elements.pmAwaitingCard.classList.remove('hidden');
+  if (elements.pmVerdictPanel) elements.pmVerdictPanel.classList.add('hidden');
+  if (elements.pmStatusBadgeText) {
+    const dict = I18N[state.language] || I18N.en;
+    elements.pmStatusBadgeText.textContent = dict.pmAwaitingAnalyzing;
+  }
+
   const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
   // Render instant mobile skeleton cards while Gemini processes
   renderSkeletonCards(selectedSages);
+
 
   try {
     await runGeminiDeliberation(ticker, selectedSages, state.instructions);
@@ -380,7 +401,16 @@ function renderWelcomeState() {
   });
 
   elements.sageCardsGrid.appendChild(welcomeCard);
+
+  // Keep Portfolio Manager sidebar in Awaiting State on initial welcome load
+  if (elements.pmAwaitingCard) elements.pmAwaitingCard.classList.remove('hidden');
+  if (elements.pmVerdictPanel) elements.pmVerdictPanel.classList.add('hidden');
+  if (elements.pmStatusBadgeText) {
+    const dict = I18N[state.language] || I18N.en;
+    elements.pmStatusBadgeText.textContent = dict.pmAwaitingReady;
+  }
 }
+
 
 // Render Instant Skeleton Placeholders during AI Deliberation
 function renderSkeletonCards(selectedSages) {
@@ -514,6 +544,10 @@ function renderFullAnalysis(data, ticker) {
     elements.stopLossText.textContent = execution.stopLoss || "$715";
     elements.convictionValueText.textContent = `${conviction} (${data.riskManager?.weightedConvictionScore || 84}%)`;
     elements.actionBadgeBox.textContent = isZh ? `執行操作: ${action}` : `ACTION: ${action}`;
+
+    // Council has provided feedback: Unlock & Display the Portfolio Manager Verdict Sidebar
+    if (elements.pmAwaitingCard) elements.pmAwaitingCard.classList.add('hidden');
+    if (elements.pmVerdictPanel) elements.pmVerdictPanel.classList.remove('hidden');
   }
 
   state.currentAnalysis = { ticker, results: parsedResults, data };
@@ -571,7 +605,15 @@ function renderDeliberationError(err, ticker, companyInfo) {
   const isZh = state.language === 'zh';
   elements.sageCardsGrid.innerHTML = '';
 
+  // Keep Portfolio Manager sidebar in Awaiting/Incomplete State
+  if (elements.pmAwaitingCard) elements.pmAwaitingCard.classList.remove('hidden');
+  if (elements.pmVerdictPanel) elements.pmVerdictPanel.classList.add('hidden');
+  if (elements.pmStatusBadgeText) {
+    elements.pmStatusBadgeText.textContent = isZh ? '⚠️ 審議未完成' : '⚠️ Deliberation Incomplete';
+  }
+
   const isMissingKey = (err.status === 503 || (err.message && err.message.includes('GEMINI_API_KEY')));
+
 
   const errorCard = document.createElement('div');
   errorCard.className = 'deliberation-error-card';

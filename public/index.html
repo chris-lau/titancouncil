@@ -145,8 +145,23 @@
 
       <!-- Right Column: Sticky Portfolio Manager Verdict Sidebar -->
       <aside class="sidebar-column">
-        <div class="pm-verdict-panel" id="pmVerdictPanel">
+        <!-- Awaiting Deliberation State (Shown until council renders feedback) -->
+        <div class="pm-awaiting-card" id="pmAwaitingCard">
+          <div class="pm-awaiting-icon">⏳</div>
+          <h3 class="pm-awaiting-title" id="i18nPmAwaitingTitle">Awaiting Council Deliberation</h3>
+          <p class="pm-awaiting-desc" id="i18nPmAwaitingDesc">
+            The Portfolio Manager will synthesize the asset allocation, entry zones, conviction score, and risk strategy once the 13 Titans render their verdicts.
+          </p>
+          <div class="pm-awaiting-badge">
+            <span class="pulse-dot"></span>
+            <span id="pmStatusBadgeText">Ready for Deliberation</span>
+          </div>
+        </div>
+
+        <!-- Active Portfolio Manager Verdict (Unlocked after council feedback) -->
+        <div class="pm-verdict-panel hidden" id="pmVerdictPanel">
           <h3 class="pm-panel-title" id="i18nPMTitle">Portfolio Manager Verdict</h3>
+
 
           <!-- Dual Speedometer / Arc Gauges -->
           <div class="dual-gauges-container">

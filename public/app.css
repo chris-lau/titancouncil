@@ -588,6 +588,69 @@ body {
   top: 1.5rem;
 }
 
+/* ===== Portfolio Manager Awaiting Placeholder State ===== */
+.pm-awaiting-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 2.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.1rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  animation: fadeInDown 0.3s ease;
+}
+
+.pm-awaiting-icon {
+  font-size: 2.4rem;
+  animation: pulseBeacon 2s infinite ease-in-out;
+}
+
+.pm-awaiting-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.pm-awaiting-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+
+.pm-awaiting-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #7dd3fc;
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseBeacon 1.5s infinite;
+}
+
+@keyframes pulseBeacon {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
 .pm-verdict-panel {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -598,6 +661,7 @@ body {
   gap: 1.25rem;
   backdrop-filter: blur(16px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  animation: fadeInDown 0.3s ease;
 }
 
 .pm-panel-title {
@@ -606,6 +670,7 @@ body {
   font-weight: 700;
   color: #ffffff;
 }
+
 
 /* Dual Speedometer Gauges */
 .dual-gauges-container {
