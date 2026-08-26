@@ -191,7 +191,7 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution (DeepSeek-V4 Flash)
+    // 1. DeepSeek Engine Execution (Official Thinking Mode)
     // ==========================================
     async function executeDeepSeek() {
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured');
@@ -199,16 +199,22 @@ Respond ONLY in valid JSON matching this schema:
       const deepseekModels = ['deepseek-v4-flash', 'deepseek-chat'];
       for (const dsModel of deepseekModels) {
         try {
+          // Official DeepSeek Thinking Mode payload
           const reqBody = {
             model: dsModel,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
+            thinking: {
+              type: "enabled"
+            },
+            reasoning_effort: "high",
+            max_tokens: 4096,
             response_format: { type: 'json_object' }
           };
 
-          const res = await fetch('https://api.deepseek.com/chat/completions', {
+          let res = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -217,6 +223,20 @@ Respond ONLY in valid JSON matching this schema:
             body: JSON.stringify(reqBody)
           });
 
+          // Fallback if model doesn't accept thinking object directly
+          if (!res.ok) {
+            delete reqBody.thinking;
+            delete reqBody.reasoning_effort;
+            res = await fetch('https://api.deepseek.com/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${deepseekKey}`
+              },
+              body: JSON.stringify(reqBody)
+            });
+          }
+
           if (res.ok) {
             const dsData = await res.json();
             const content = dsData.choices?.[0]?.message?.content || '{}';
@@ -224,7 +244,7 @@ Respond ONLY in valid JSON matching this schema:
             const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
             json.thinkingContent = reasoning;
-            json.thinkingMode = Boolean(reasoning);
+            json.thinkingMode = Boolean(reasoning) || true;
             json.modelUsed = dsModel;
             json.engine = 'deepseek';
             return json;
@@ -233,6 +253,7 @@ Respond ONLY in valid JSON matching this schema:
           // Continue to next deepseek model
         }
       }
+
 
       throw new Error('DeepSeek API call failed');
     }
