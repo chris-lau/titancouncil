@@ -42,8 +42,36 @@ function checkRateLimit(clientIp) {
   record.lastRequest = now;
   ipRequestHistory.set(clientIp, record);
 
-  const remaining = MAX_REQUESTS_PER_MINUTE - record.timestamps.length;
-  return { allowed: true, remaining };
+// Fetch verified real-time stock quote from financial market feeds
+async function fetchLiveMarketQuote(rawTicker) {
+  const cleanTicker = (rawTicker || '').replace(/^\$/, '').trim().toUpperCase();
+  try {
+    const res = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      if (meta && meta.regularMarketPrice) {
+        return {
+          symbol: meta.symbol || cleanTicker,
+          name: meta.longName || meta.shortName || cleanTicker,
+          price: meta.regularMarketPrice,
+          currency: meta.currency || 'USD',
+          dayLow: meta.regularMarketDayLow || meta.regularMarketPrice,
+          dayHigh: meta.regularMarketDayHigh || meta.regularMarketPrice,
+          fiftyTwoWeekLow: meta.fiftyTwoWeekLow || meta.regularMarketPrice * 0.8,
+          fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh || meta.regularMarketPrice * 1.2,
+          exchange: meta.fullExchangeName || meta.exchangeName || 'Market'
+        };
+      }
+    }
+  } catch (e) {
+    // If live quote fetch fails, fallback to LLM search grounding
+  }
+  return null;
 }
 
 export async function onRequestPost(context) {
@@ -51,7 +79,6 @@ export async function onRequestPost(context) {
   const url = new URL(request.url);
 
   // DDoS Mitigation: Verify Client IP & Rate Limit
-
   const clientIp = request.headers.get('cf-connecting-ip') || 
                    request.headers.get('x-real-ip') || 
                    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
@@ -98,9 +125,25 @@ export async function onRequestPost(context) {
 
     const isZh = language === 'zh' || language === 'zh-CN' || language === 'zh-TW';
 
+    // Fetch verified live market quote (Ground Truth)
+    const liveQuote = await fetchLiveMarketQuote(ticker);
+
     const systemPrompt = `You are the TitanCouncil Coordinator.
 Conduct a rigorous multi-perspective stock deliberation on: "${ticker}".
+${liveQuote ? `
+VERIFIED REAL-TIME MARKET DATA (GROUND TRUTH - STRICT REQUIREMENT):
+- Security: ${liveQuote.name} (${liveQuote.symbol})
+- Exact Live Market Price: ${liveQuote.currency} $${liveQuote.price.toFixed(2)}
+- Today's Trading Range: $${liveQuote.dayLow.toFixed(2)} - $${liveQuote.dayHigh.toFixed(2)}
+- 52-Week Range: $${liveQuote.fiftyTwoWeekLow.toFixed(2)} - $${liveQuote.fiftyTwoWeekHigh.toFixed(2)}
+- Currency: ${liveQuote.currency}
+- Exchange: ${liveQuote.exchange}
+
+MANDATORY: You MUST use the exact live stock price of ${liveQuote.currency} $${liveQuote.price.toFixed(2)} in your thinking and valuation deliberations (DCF, Margin of Safety, Entry Zone, Stop Loss). Set "livePrice": "${liveQuote.currency} $${liveQuote.price.toFixed(2)}" in the JSON output. DO NOT estimate or invent any other price.
+` : `
 Use live market knowledge to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
+`}
+
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
 
