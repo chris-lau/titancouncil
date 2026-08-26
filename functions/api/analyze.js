@@ -530,7 +530,7 @@ Respond ONLY in valid JSON matching this schema:
         const generationConfig = {
           temperature: 0.3,
           maxOutputTokens: 8192,
-          ...(is37 ? { thinkingConfig: { thinkingBudget: 4096 } } : {})
+          ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
 
         try {
