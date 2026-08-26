@@ -297,14 +297,16 @@ function applyFilter(filterKey) {
 
 // Main Deliberation Trigger
 async function handleSummon() {
-  const rawInput = elements.tickerInput.value.trim() || '$NVDA';
+  if (state.isAnalyzing) return; // Prevent double-trigger
+
+  const rawInput = elements.tickerInput.value.trim();
+  if (!rawInput) return;
+
   const { cleanTicker, explicitFilter, mentionedSageIds } = parseInputQuery(rawInput);
   
-  // Handle typed filter flags or @mentions in search input
   if (mentionedSageIds.size > 0) {
     state.selectedSageIds = mentionedSageIds;
-    document.querySelectorAll('.mockup-pill').forEach(pill => pill.classList.remove('active'));
-  } else if (explicitFilter) {
+  } else if (explicitFilter && PRESET_FILTERS[explicitFilter]) {
     state.activeFilter = explicitFilter;
     state.selectedSageIds = new Set(PRESET_FILTERS[explicitFilter].ids);
     document.querySelectorAll('.mockup-pill').forEach(pill => {
@@ -318,6 +320,8 @@ async function handleSummon() {
   state.ticker = ticker;
   state.instructions = elements.instructionsInput ? elements.instructionsInput.value.trim() : '';
   state.isAnalyzing = true;
+  elements.summonBtn.disabled = true;
+  elements.summonBtn.style.opacity = '0.7';
 
   elements.headerCompanyName.textContent = `${companyInfo.name} (${companyInfo.currency})`;
   
@@ -351,6 +355,8 @@ async function handleSummon() {
     renderDeliberationError(err, ticker, companyInfo);
   } finally {
     state.isAnalyzing = false;
+    elements.summonBtn.disabled = false;
+    elements.summonBtn.style.opacity = '1';
     elements.progressBarFill.style.width = '100%';
     setTimeout(() => {
       elements.deliberationProgress.classList.add('hidden');
@@ -613,25 +619,31 @@ function renderDeliberationError(err, ticker, companyInfo) {
   }
 
   const isMissingKey = (err.status === 503 || (err.message && err.message.includes('GEMINI_API_KEY')));
-
+  const isRateLimited = (err.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit')));
 
   const errorCard = document.createElement('div');
   errorCard.className = 'deliberation-error-card';
   errorCard.innerHTML = `
-    <div class="error-card-icon">${isMissingKey ? '🔑' : '⚠️'}</div>
+    <div class="error-card-icon">${isMissingKey ? '🔑' : (isRateLimited ? '⏱️' : '⚠️')}</div>
     <h3 class="error-card-title">
       ${isMissingKey 
         ? (isZh ? 'GEMINI_API_KEY 環境變數未配置' : 'GEMINI_API_KEY Required') 
-        : (isZh ? 'Google Gemini AI 研判連線失敗' : 'Google Gemini AI Deliberation Unavailable')}
+        : (isRateLimited
+            ? (isZh ? '請求頻率保護限制 (Rate Limit Active)' : 'Deliberation Rate Limit Active')
+            : (isZh ? 'Google Gemini AI 研判連線失敗' : 'Google Gemini AI Deliberation Unavailable'))}
     </h3>
     <p class="error-card-desc">
       ${isMissingKey 
         ? (isZh 
             ? `TitanCouncil 採用 Google Gemini 原生即時運算。請在 Cloudflare Pages 後台設置 API Key 即可開啟即時多大師審議。`
             : `TitanCouncil exclusively operates on live Google Gemini LLM. Please configure your API key in Cloudflare Pages to activate real-time council deliberation.`)
-        : (isZh 
-            ? `在對 ${ticker} 進行 AI 研判時遇到錯誤: <strong>${err.message || '未知錯誤'}</strong>`
-            : `Encountered an error while deliberating on ${ticker}: <strong>${err.message || 'Unknown network error'}</strong>`)}
+        : (isRateLimited
+            ? (isZh
+                ? `為了防止惡意請求與 DDoS 攻擊並保護 API 配額，系統已啟動頻率防護。請稍候幾秒鐘再重新召集智囊團。`
+                : `To prevent abuse, DDoS attacks, and protect Gemini API quota, rate limiting is active. Please wait a few seconds before summoning the council again.`)
+            : (isZh 
+                ? `在對 ${ticker} 進行 AI 研判時遇到錯誤: <strong>${err.message || '未知錯誤'}</strong>`
+                : `Encountered an error while deliberating on ${ticker}: <strong>${err.message || 'Unknown network error'}</strong>`))}
     </p>
 
     ${isMissingKey ? `
@@ -645,6 +657,7 @@ function renderDeliberationError(err, ticker, companyInfo) {
         </ol>
       </div>
     ` : ''}
+
 
     <button type="button" class="error-retry-btn">
       🔄 ${isZh ? '重新嘗試連線研判' : 'Retry Deliberation'}

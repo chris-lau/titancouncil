@@ -1,20 +1,99 @@
 // Cloudflare Pages Function: /api/analyze
 // Executes TitanCouncil Deliberation powered by Google Gemini with Live Google Search Grounding & Titan-Specific Source Citations
 
+// In-Memory IP Throttling Store for Edge DDoS Protection & Rate Limiting
+const ipRequestHistory = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute window
+const MAX_REQUESTS_PER_MINUTE = 8;     // Max 8 deep deliberations per minute per IP
+const MIN_BURST_INTERVAL_MS = 2000;     // Min 2 seconds between consecutive requests
+
+function checkRateLimit(clientIp) {
+  const now = Date.now();
+  
+  // Cleanup stale IP entries (> 5 minutes old) to prevent memory leak
+  if (ipRequestHistory.size > 10000) {
+    for (const [ip, data] of ipRequestHistory.entries()) {
+      if (now - data.lastRequest > 300000) {
+        ipRequestHistory.delete(ip);
+      }
+    }
+  }
+
+  const record = ipRequestHistory.get(clientIp) || { timestamps: [], lastRequest: 0 };
+  
+  // 1. Burst protection (minimum gap between calls)
+  if (now - record.lastRequest < MIN_BURST_INTERVAL_MS) {
+    const waitSecs = Math.ceil((MIN_BURST_INTERVAL_MS - (now - record.lastRequest)) / 1000);
+    return { allowed: false, retryAfter: Math.max(waitSecs, 2), reason: 'burst' };
+  }
+
+  // 2. Sliding window rate limit
+  record.timestamps = record.timestamps.filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
+
+  if (record.timestamps.length >= MAX_REQUESTS_PER_MINUTE) {
+    const oldest = record.timestamps[0];
+    const resetTime = oldest + RATE_LIMIT_WINDOW_MS;
+    const retryAfter = Math.ceil((resetTime - now) / 1000);
+    return { allowed: false, retryAfter: Math.max(retryAfter, 5), reason: 'window' };
+  }
+
+  // Record valid request
+  record.timestamps.push(now);
+  record.lastRequest = now;
+  ipRequestHistory.set(clientIp, record);
+
+  const remaining = MAX_REQUESTS_PER_MINUTE - record.timestamps.length;
+  return { allowed: true, remaining };
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
+  // DDoS Mitigation: Verify Client IP & Rate Limit
+  const clientIp = request.headers.get('cf-connecting-ip') || 
+                   request.headers.get('x-real-ip') || 
+                   request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+                   'global';
+
+  const rateCheck = checkRateLimit(clientIp);
+  if (!rateCheck.allowed) {
+    return new Response(JSON.stringify({ 
+      error: `Rate limit reached. To prevent abuse and protect Gemini API quota, please wait ${rateCheck.retryAfter}s before summoning again.`,
+      retryAfter: rateCheck.retryAfter,
+      reason: rateCheck.reason
+    }), {
+      status: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'Retry-After': String(rateCheck.retryAfter),
+        'X-RateLimit-Limit': String(MAX_REQUESTS_PER_MINUTE),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(rateCheck.retryAfter)
+      }
+    });
+  }
+
   try {
+    // Body size guard: Reject payloads larger than 32KB to prevent payload flooding
+    const contentLength = parseInt(request.headers.get('content-length') || '0', 10);
+    if (contentLength > 32768) {
+      return new Response(JSON.stringify({ error: 'Payload too large (Max 32KB)' }), {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const body = await request.json();
     const { ticker, sages, instructions, financials, language = 'en' } = body;
     const userDirectives = instructions || financials || '';
 
-    if (!ticker) {
-      return new Response(JSON.stringify({ error: 'Ticker symbol is required' }), {
+    if (!ticker || typeof ticker !== 'string' || ticker.trim().length > 20) {
+      return new Response(JSON.stringify({ error: 'Valid ticker symbol is required (max 20 characters)' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
 
     const isZh = language === 'zh' || language === 'zh-CN' || language === 'zh-TW';
     const isCanadian = ticker.toUpperCase().endsWith('.TO') || ticker.toUpperCase().endsWith('.V');
