@@ -53,10 +53,10 @@ async function fetchMarketDataBundle(rawTicker) {
   const cleanTicker = (rawTicker || '').replace(/^\$/, '').trim().toUpperCase();
   const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
 
-  // Fetch price quote and fundamental data in parallel for performance
+  // Fetch price quote and fundamental data in parallel (5s timeout to avoid Worker stall)
   const [quoteRes, summaryRes] = await Promise.allSettled([
-    fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, { headers }),
-    fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail`, { headers })
+    fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, { headers, signal: AbortSignal.timeout(5000) }),
+    fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail`, { headers, signal: AbortSignal.timeout(5000) })
   ]);
 
   let bundle = null;
@@ -170,10 +170,11 @@ async function fetchMarketDataBundle(rawTicker) {
         }
       }
 
-      // Debt/Equity ratio (from priceToBook and total debt approximate)
-      if (totalDebt && marketCap && bvps && eps) {
-        // Use total debt vs market cap as simple leverage indicator
-        bundle.debtToEquity = (totalDebt / marketCap).toFixed(2);
+      // Debt/Equity = Total Debt / Total Shareholder Equity
+      // Equity ≈ Market Cap / Price-to-Book (i.e. book value of equity)
+      if (totalDebt && marketCap && priceToBook && priceToBook > 0) {
+        const totalEquity = marketCap / priceToBook;
+        bundle.debtToEquity = (totalDebt / totalEquity).toFixed(2);
       }
     }
   } catch (e) {
@@ -408,10 +409,12 @@ Respond ONLY in valid JSON matching this schema:
             ],
             response_format: { type: 'json_object' },
             stream: true,
+            temperature: 0.3,
             max_tokens: 8192
           }
         },
         // 2. DeepSeek Reasoner (R1 Thinking Model: streaming & 8192 token window)
+        // Note: R1 uses its own CoT temperature internally; temperature param here is advisory
         {
           model: 'deepseek-reasoner',
           body: {
@@ -420,7 +423,9 @@ Respond ONLY in valid JSON matching this schema:
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
+            response_format: { type: 'json_object' },
             stream: true,
+            temperature: 0.3,
             max_tokens: 8192
           }
         },
@@ -490,7 +495,10 @@ Respond ONLY in valid JSON matching this schema:
             }
 
             const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-            const json = JSON.parse(cleaned);
+            // Resilient JSON extraction: find outermost { ... } object
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('No valid JSON object found in DeepSeek response');
+            const json = JSON.parse(jsonMatch[0]);
             json.thinkingContent = fullReasoning;
             json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
             json.modelUsed = config.model;
@@ -522,7 +530,7 @@ Respond ONLY in valid JSON matching this schema:
         const generationConfig = {
           temperature: 0.3,
           maxOutputTokens: 8192,
-          ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+          ...(is37 ? { thinkingConfig: { thinkingBudget: 8192 } } : {})
         };
 
         try {
@@ -591,7 +599,10 @@ Respond ONLY in valid JSON matching this schema:
             }
 
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-            const json = JSON.parse(cleaned);
+            // Resilient JSON extraction: find outermost { ... } object
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('No valid JSON object found in Gemini response');
+            const json = JSON.parse(jsonMatch[0]);
             json.thinkingContent = thoughts;
             json.thinkingMode = is37;
             json.modelUsed = model;

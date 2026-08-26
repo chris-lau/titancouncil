@@ -1279,50 +1279,9 @@ function renderMockupSageCard(item, isZh) {
   elements.sageCardsGrid.appendChild(card);
 }
 
-function updatePortfolioManagerSidebar(results, ticker, flags, isZh) {
-  const bullish = results.filter(r => r.signal === 'BULLISH').length;
-  const bearish = results.filter(r => r.signal === 'BEARISH').length;
-
-  const isCanadian = flags.isCanadian;
-  const currencySymbol = isCanadian ? 'C$' : '$';
-
-  if (flags.isNvda) {
-    elements.riskLevelText.textContent = isZh ? "中度風險 / 穩健偏好" : "Moderate Risk";
-    elements.horizonValText.textContent = isZh ? "中期 (1-3年)" : "Medium Term";
-    elements.entryZoneText.textContent = `${currencySymbol}780 - ${currencySymbol}810`;
-    elements.stopLossText.textContent = `${currencySymbol}715`;
-    elements.convictionValueText.textContent = isZh ? "高 (84%)" : "High (84%)";
-    elements.actionBadgeBox.textContent = isZh ? "執行操作: 逢回檔分批建倉" : "ACTION: ACCUMULATE ON DIPS";
-  } else if (flags.isShop) {
-    elements.riskLevelText.textContent = isZh ? "中高成長 / 科技動量" : "Growth Risk";
-    elements.horizonValText.textContent = isZh ? "中長期 (2-4年)" : "Med-Long Term";
-    elements.entryZoneText.textContent = `${currencySymbol}90 - ${currencySymbol}98`;
-    elements.stopLossText.textContent = `${currencySymbol}82`;
-    elements.convictionValueText.textContent = isZh ? "良好 (78%)" : "Good (78%)";
-    elements.actionBadgeBox.textContent = isZh ? "執行操作: 突破加倉" : "ACTION: BUY BREAKOUTS";
-  } else if (flags.isRy || flags.isEnb) {
-    elements.riskLevelText.textContent = isZh ? "低風險 / 穩健收益" : "Defensive Income";
-    elements.horizonValText.textContent = isZh ? "長期 (3-5年以上)" : "Long Term (3-5y)";
-    elements.entryZoneText.textContent = isCanadian ? "C$142 - C$148" : "$105 - $110";
-    elements.stopLossText.textContent = isCanadian ? "C$134" : "$98";
-    elements.convictionValueText.textContent = isZh ? "極高 (88%)" : "Very High (88%)";
-    elements.actionBadgeBox.textContent = isZh ? "執行操作: 核心股息定投" : "ACTION: CORE DIVIDEND BUY";
-  } else if (flags.isCsu) {
-    elements.riskLevelText.textContent = isZh ? "穩健複利 / 高品質成長" : "Quality Compounding";
-    elements.horizonValText.textContent = isZh ? "超長線 (5-10年)" : "Multi-Year Compounding";
-    elements.entryZoneText.textContent = "C$4,100 - C$4,250";
-    elements.stopLossText.textContent = "C$3,850";
-    elements.convictionValueText.textContent = isZh ? "頂級 (92%)" : "Elite High (92%)";
-    elements.actionBadgeBox.textContent = isZh ? "執行操作: 長期持有複利" : "ACTION: BUY & COMPOUND";
-  } else {
-    elements.riskLevelText.textContent = isZh ? "均衡配置" : "Balanced Risk";
-    elements.horizonValText.textContent = isZh ? "中期 (1-3年)" : "Medium Term";
-    elements.entryZoneText.textContent = `${currencySymbol}165 - ${currencySymbol}175`;
-    elements.stopLossText.textContent = `${currencySymbol}150`;
-    elements.convictionValueText.textContent = `${bullish > bearish ? 'Bullish' : 'Neutral'} (${Math.round((bullish / Math.max(results.length, 1)) * 100)}%)`;
-    elements.actionBadgeBox.textContent = bullish > bearish ? (isZh ? "執行操作: 逢低買入" : "ACTION: BUY PULLBACKS") : (isZh ? "執行操作: 觀望等待" : "ACTION: HOLD / WATCH");
-  }
-}
+// NOTE: Legacy updatePortfolioManagerSidebar with hardcoded values has been removed.
+// Portfolio Manager sidebar is now populated dynamically in renderFullAnalysis()
+// using LLM-returned data + validateAndFixExecutionLevels() boundary validation.
 
 // Open On-Demand Profile Modal
 export function openSageProfile(sageId) {
