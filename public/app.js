@@ -646,6 +646,66 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
     const decoder = new TextDecoder();
     let buffer = '';
 
+    const handleEventBlock = (eventBlock) => {
+      if (!eventBlock.trim()) return;
+      const lines = eventBlock.split('\n');
+      let eventType = 'message';
+      let dataPayload = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) eventType = line.replace('event:', '').trim();
+        if (line.startsWith('data:')) dataPayload = line.replace('data:', '').trim();
+      }
+
+      if (!dataPayload) return;
+
+      try {
+        const parsed = JSON.parse(dataPayload);
+        if (eventType === 'chunk') {
+          if (parsed.type === 'thinking' && parsed.chunk) {
+            accumulatedThinking += parsed.chunk;
+            const streamTextEl = document.getElementById('liveThinkingStreamText');
+            const streamBodyEl = document.getElementById('liveThinkingStreamBody');
+            const autoScrollBtnEl = document.getElementById('liveAutoScrollBtn');
+
+            if (streamTextEl) {
+              streamTextEl.textContent = accumulatedThinking;
+              if (streamBodyEl && (!autoScrollBtnEl || !autoScrollBtnEl.classList.contains('paused'))) {
+                streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
+              }
+            }
+            elements.progressBarFill.style.width = '70%';
+          } else if (parsed.type === 'content') {
+            elements.progressBarFill.style.width = '85%';
+            const toolbarSpan = document.querySelector('.live-thinking-terminal-toolbar span:first-child');
+            if (toolbarSpan && !toolbarSpan.dataset.done) {
+              toolbarSpan.dataset.done = 'true';
+              toolbarSpan.textContent = isZh ? '✅ 深度思維完成 · 正在生成 13 位巨頭評級報告...' : '✅ Thinking Complete · Finalizing Council Verdicts...';
+              
+              const streamTextEl = document.getElementById('liveThinkingStreamText');
+              if (streamTextEl && !streamTextEl.textContent.includes('[✓ Thinking Phase Complete')) {
+                streamTextEl.textContent = accumulatedThinking + (isZh 
+                  ? '\n\n[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告...]'
+                  : '\n\n[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters...]');
+                const streamBodyEl = document.getElementById('liveThinkingStreamBody');
+                if (streamBodyEl) streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
+              }
+            }
+          }
+
+        } else if (eventType === 'complete') {
+          finalJsonData = parsed;
+          if (accumulatedThinking && !finalJsonData.thinkingContent) {
+            finalJsonData.thinkingContent = accumulatedThinking;
+          }
+        } else if (eventType === 'error') {
+          throw new Error(parsed.error || 'Streaming error');
+        }
+      } catch (pe) {
+        if (eventType === 'error') throw pe;
+      }
+    };
+
     while (true) {
       if (state.abortController?.signal?.aborted) return;
       const { done, value } = await reader.read();
@@ -656,73 +716,23 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
       buffer = events.pop() || '';
 
       for (const eventBlock of events) {
-        if (!eventBlock.trim()) continue;
-        const lines = eventBlock.split('\n');
-        let eventType = 'message';
-        let dataPayload = '';
-
-        for (const line of lines) {
-          if (line.startsWith('event:')) eventType = line.replace('event:', '').trim();
-          if (line.startsWith('data:')) dataPayload = line.replace('data:', '').trim();
-        }
-
-        if (!dataPayload) continue;
-
-        try {
-          const parsed = JSON.parse(dataPayload);
-          if (eventType === 'chunk') {
-            if (parsed.type === 'thinking' && parsed.chunk) {
-              accumulatedThinking += parsed.chunk;
-              const streamTextEl = document.getElementById('liveThinkingStreamText');
-              const streamBodyEl = document.getElementById('liveThinkingStreamBody');
-              const autoScrollBtnEl = document.getElementById('liveAutoScrollBtn');
-
-              if (streamTextEl) {
-                streamTextEl.textContent = accumulatedThinking;
-                if (streamBodyEl && (!autoScrollBtnEl || !autoScrollBtnEl.classList.contains('paused'))) {
-                  streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
-                }
-              }
-              elements.progressBarFill.style.width = '70%';
-            } else if (parsed.type === 'content') {
-              elements.progressBarFill.style.width = '85%';
-              const toolbarSpan = document.querySelector('.live-thinking-terminal-toolbar span:first-child');
-              if (toolbarSpan && !toolbarSpan.dataset.done) {
-                toolbarSpan.dataset.done = 'true';
-                toolbarSpan.textContent = isZh ? '✅ 深度思維完成 · 正在生成 13 位巨頭評級報告...' : '✅ Thinking Complete · Finalizing Council Verdicts...';
-                
-                const streamTextEl = document.getElementById('liveThinkingStreamText');
-                if (streamTextEl && !streamTextEl.textContent.includes('[✓ Thinking Phase Complete')) {
-                  streamTextEl.textContent = accumulatedThinking + (isZh 
-                    ? '\n\n[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告...]'
-                    : '\n\n[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters...]');
-                  const streamBodyEl = document.getElementById('liveThinkingStreamBody');
-                  if (streamBodyEl) streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
-                }
-              }
-            }
-
-          } else if (eventType === 'complete') {
-            finalJsonData = parsed;
-            if (accumulatedThinking && !finalJsonData.thinkingContent) {
-              finalJsonData.thinkingContent = accumulatedThinking;
-            }
-          } else if (eventType === 'error') {
-            throw new Error(parsed.error || 'Streaming error');
-          }
-        } catch (pe) {
-          if (eventType === 'error') throw pe;
-        }
+        handleEventBlock(eventBlock);
       }
+    }
+
+    // Flush any remaining event in buffer
+    if (buffer.trim()) {
+      handleEventBlock(buffer.trim());
     }
 
     if (finalJsonData) {
       if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
       renderFullAnalysis(finalJsonData, ticker);
       return;
+    } else if (!state.abortController?.signal?.aborted) {
+      lastError = new Error(isZh ? '伺服器串流完成但未收到完整分析結果，請重新召集' : 'Stream completed without receiving final analysis payload. Please retry.');
     }
   }
-
 
   if (lastError && !state.abortController?.signal?.aborted) {
     throw lastError;

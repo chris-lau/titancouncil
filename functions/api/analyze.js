@@ -494,10 +494,29 @@ Respond ONLY in valid JSON matching this schema:
               }
             }
 
+            // Flush remaining buffer
+            if (buffer.trim()) {
+              const trimmed = buffer.trim();
+              if (trimmed.startsWith('data:') && trimmed.slice(5).trim() !== '[DONE]') {
+                try {
+                  const parsed = JSON.parse(trimmed.slice(5).trim());
+                  const delta = parsed.choices?.[0]?.delta || {};
+                  if (delta.reasoning_content) {
+                    fullReasoning += delta.reasoning_content;
+                    if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
+                  }
+                  if (delta.content) {
+                    fullContent += delta.content;
+                    if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
+                  }
+                } catch (pe) {}
+              }
+            }
+
             const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             // Resilient JSON extraction: find outermost { ... } object
             const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No valid JSON object found in DeepSeek response');
+            if (!jsonMatch) throw new Error(`No valid JSON object found in DeepSeek response: ${cleaned.slice(0, 150)}`);
             const json = JSON.parse(jsonMatch[0]);
             json.thinkingContent = fullReasoning;
             json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
@@ -509,7 +528,7 @@ Respond ONLY in valid JSON matching this schema:
             lastDeepSeekError = `[${res.status}] ${errText}`;
           }
         } catch (e) {
-          lastDeepSeekError = e.message;
+          lastDeepSeekError = `${config.model}: ${e.message}`;
         }
       }
 
@@ -523,6 +542,8 @@ Respond ONLY in valid JSON matching this schema:
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
       const geminiModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+      let lastGeminiError = '';
+
       for (const model of geminiModels) {
         const is37 = model.includes('3.7');
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
@@ -547,6 +568,8 @@ Respond ONLY in valid JSON matching this schema:
 
           // B. Fallback to standard stream without search if tool error
           if (!res.ok) {
+            const toolErr = await res.text().catch(() => '');
+            lastGeminiError = `[${res.status} tool-search] ${toolErr}`;
             res = await fetch(geminiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -598,10 +621,34 @@ Respond ONLY in valid JSON matching this schema:
               }
             }
 
+            // Flush remaining buffer
+            if (buffer.trim()) {
+              const trimmed = buffer.trim();
+              if (trimmed.startsWith('data:')) {
+                const dataStr = trimmed.slice(5).trim();
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const parts = parsed.candidates?.[0]?.content?.parts || [];
+                  parts.forEach(part => {
+                    if (part.thought) {
+                      thoughts += (part.text || '');
+                      if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
+                    } else if (part.text) {
+                      rawText += part.text;
+                      if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
+                    }
+                  });
+                  if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+                    groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
+                  }
+                } catch (pe) {}
+              }
+            }
+
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             // Resilient JSON extraction: find outermost { ... } object
             const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('No valid JSON object found in Gemini response');
+            if (!jsonMatch) throw new Error(`No valid JSON object found in Gemini response: ${cleaned.slice(0, 150)}`);
             const json = JSON.parse(jsonMatch[0]);
             json.thinkingContent = thoughts;
             json.thinkingMode = is37;
@@ -616,12 +663,15 @@ Respond ONLY in valid JSON matching this schema:
             });
             if (webLinks.length > 0) json.groundingWebLinks = webLinks;
             return json;
+          } else {
+            const errBody = await res.text().catch(() => '');
+            lastGeminiError = `[${res.status}] ${errBody}`;
           }
         } catch (e) {
-          // Continue to next candidate model
+          lastGeminiError = `${model}: ${e.message}`;
         }
       }
-      throw new Error('Gemini API calls failed');
+      throw new Error(`Gemini API error: ${lastGeminiError || 'Gemini API calls failed'}`);
     }
 
 
