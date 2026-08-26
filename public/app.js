@@ -95,6 +95,18 @@ function attachEventListeners() {
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
   });
 
+  // Titan Profile Modal
+  const sageProfileModal = document.getElementById('sageProfileModal');
+  const closeProfileBtn = document.getElementById('closeProfileBtn');
+  const closeProfileFooterBtn = document.getElementById('closeProfileFooterBtn');
+  if (closeProfileBtn) closeProfileBtn.addEventListener('click', () => sageProfileModal.classList.add('hidden'));
+  if (closeProfileFooterBtn) closeProfileFooterBtn.addEventListener('click', () => sageProfileModal.classList.add('hidden'));
+  if (sageProfileModal) {
+    sageProfileModal.addEventListener('click', e => {
+      if (e.target === sageProfileModal) sageProfileModal.classList.add('hidden');
+    });
+  }
+
   // Filter Help Modal (💡 Button)
   elements.filterHelpBtn.addEventListener('click', () => elements.filterHelpModal.classList.remove('hidden'));
   elements.closeFilterHelpBtn.addEventListener('click', () => elements.filterHelpModal.classList.add('hidden'));
@@ -419,7 +431,7 @@ function renderFullAnalysis(data, ticker) {
     const horizon = pm.timeHorizon || '3-5 Years';
     const execution = pm.execution || {};
 
-    elements.riskLevelText.textContent = isZh ? "稳健/中度风险" : "Moderate Risk";
+    elements.riskLevelText.textContent = isZh ? "穩健/中度風險" : "Moderate Risk";
     elements.horizonValText.textContent = horizon;
     elements.entryZoneText.textContent = execution.entryZone || "$780 - $810";
     elements.stopLossText.textContent = execution.stopLoss || "$715";
@@ -446,7 +458,7 @@ async function runSimulatedDeliberation(ticker, selectedSages, financials, compa
 
   for (const sage of selectedSages) {
     step++;
-    elements.statusMessage.textContent = isZh ? `正在咨询 ${sage.nameZh}...` : `Consulting ${sage.name}...`;
+    elements.statusMessage.textContent = isZh ? `正在諮詢 ${sage.nameZh}...` : `Consulting ${sage.name}...`;
     elements.progressBarFill.style.width = `${Math.floor((step / total) * 90)}%`;
 
     await new Promise(r => setTimeout(r, 60));
@@ -469,22 +481,22 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isRy || flags.isCsu) {
         signal = "BULLISH"; confidence = 92;
         quote = isZh 
-          ? "加拿大银行业寡头垄断护城河极深，ROE 稳定在 15%+，分红复利超过百年，极具确定性。"
+          ? "加拿大銀行業寡頭壟斷護城河極深，ROE 穩定在 15%+，分紅複利超過百年，極具確定性。"
           : "Oligopoly banking moat in Canada with consistent 15%+ ROE and over a century of reliable dividend compounding.";
       } else if (flags.isNvda) {
         signal = "BULLISH"; confidence = 90;
         quote = isZh 
-          ? "价格是你付出的，价值是你得到的。英伟达在 AI 时代的硬件生态壁垒极其宽广。"
+          ? "價格是你付出的，價值是你得到的。輝達在 AI 時代的硬體生態壁壘極其寬廣。"
           : "Price is what you pay. Value is what you get. NVIDIA's wide moat justifies the valuation for long-term holders.";
       } else if (flags.isShop) {
         signal = "NEUTRAL"; confidence = 70;
         quote = isZh 
-          ? "商家电商生态极为出色，但自由现金流估值乘数目前未提供充足的安全边际。"
+          ? "商家電商生態極為出色，但自由現金流估值乘數目前未提供充足的安全邊際。"
           : "Excellent merchant e-commerce ecosystem, but current valuation multiples leave limited margin of safety.";
       } else {
         signal = "NEUTRAL"; confidence = 68;
         quote = isZh 
-          ? "严守能力圈原则，要求企业具备清晰的特许经营权与不低于 25% 的安全边际。"
+          ? "嚴守能力圈原則，要求企業具備清晰的特許經營權與不低於 25% 的安全邊際。"
           : "Strict circle of competence: requiring clear franchise moats and at least 25% margin of safety.";
       }
       break;
@@ -493,17 +505,17 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isCsu) {
         signal = "BULLISH"; confidence = 94;
         quote = isZh 
-          ? "Constellation Software 是绝佳的多元思维模型范例：极高资本回报率加上精准的垂直软件并购复利。"
+          ? "Constellation Software 是絕佳的多元思維模型範例：極高資本回報率加上精準的垂直軟體併購複利。"
           : "Constellation Software is a textbook mental model winner: exceptional ROIC with programmatic VMS compounding.";
       } else if (flags.isNvda) {
         signal = "NEUTRAL"; confidence = 81;
         quote = isZh 
-          ? "反过来想：什么会杀死这家公司？硬件周期的波动不可忽视。伟大企业亦需合理价格。"
+          ? "反過來想：什麼會殺死這家公司？硬體週期的波動不可忽視。偉大企業亦需合理價格。"
           : "Invert: what kills this company? Hardware cycle concentration. A wonderful business, but priced for perfection.";
       } else {
         signal = "NEUTRAL"; confidence = 72;
         quote = isZh 
-          ? "避免盲目从众。寻找具备不可替代品牌与强大定价权的超级企业。"
+          ? "避免盲目從眾。尋找具備不可替代品牌與強大定價權的超級企業。"
           : "Avoid crowd mania. Look for irreplaceable franchises with strong pricing power.";
       }
       break;
@@ -512,17 +524,17 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isEnb || flags.isRy) {
         signal = "BULLISH"; confidence = 84;
         quote = isZh 
-          ? "能源管网与加拿大银行提供 6%-7% 的硬现金流收益率，EV/EBIT 处在合理区间，具备坚实防御性。"
+          ? "能源管網與加拿大銀行提供 6%-7% 的硬現金流收益率，EV/EBIT 處在合理區間，具備堅實防禦性。"
           : "Canadian pipeline/banking infrastructure offers 6-7% real cash yields with protected volume franchises.";
       } else if (flags.isNvda || flags.isShop) {
         signal = "BEARISH"; confidence = 88;
         quote = isZh 
-          ? "估值乘数处于历史高位，市场集中度过高隐藏了未来的需求悬崖，必须警惕下行风险。"
+          ? "估值乘數處於歷史高位，市場集中度過高隱藏了未來的需求懸崖，必須警惕下行風險。"
           : "Unprecedented concentration and market mania reminiscent of previous bubbles. Proceed with extreme caution.";
       } else {
         signal = "BEARISH"; confidence = 78;
         quote = isZh 
-          ? "在废墟中寻找自由现金流收益率 >10% 的错价资产，拒绝追逐高溢价动量股。"
+          ? "在廢墟中尋找自由現金流收益率 >10% 的錯價資產，拒絕追逐高溢價動量股。"
           : "Looking for mispriced assets with FCF yield > 10%. Refuse to pay premiums for momentum hype.";
       }
       break;
@@ -531,17 +543,17 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isShop || flags.isNvda) {
         signal = "BULLISH"; confidence = 95;
         quote = isZh 
-          ? "Shopify 与英伟达处于全球数字化商业与算力革命的核心，TAM（总潜在市场）呈指数级爆发。"
+          ? "Shopify 與輝達處於全球數位化商業與算力革命的核心，TAM（總潛在市場）呈指數級爆發。"
           : "Shopify and NVIDIA are at the epicenter of exponential commerce and compute convergence. TAM expansion is massive.";
       } else if (flags.isRy || flags.isEnb) {
         signal = "NEUTRAL"; confidence = 60;
         quote = isZh 
-          ? "传统金融与基础设施面临金融科技与绿色转型的长期颠覆，成长斜率相对平缓。"
+          ? "傳統金融與基礎設施面臨金融科技與綠色轉型的長期顛覆，成長斜率相對平緩。"
           : "Legacy infrastructure and banking face fintech and energy transition disruption headwinds.";
       } else {
         signal = "NEUTRAL"; confidence = 65;
         quote = isZh 
-          ? "评估研发支出是否能催生赢家通吃的平台网络效应。"
+          ? "評估研發支出是否能催生贏家通吃的平台網路效應。"
           : "Evaluating whether R&D creates winner-take-most platform network effects.";
       }
       break;
@@ -550,17 +562,17 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isRy || flags.isCsu) {
         signal = "BULLISH"; confidence = 82;
         quote = isZh 
-          ? "林迪效应（Lindy Effect）明显：历经百年危机洗礼依然稳健，具备极高的反脆弱性与下行防守力。"
+          ? "林迪效應（Lindy Effect）明顯：歷經百年危機洗禮依然穩健，具備極高的反脆弱性與下行防守力。"
           : "Strong Lindy effect: proven resilience across century-scale crises with robust antifragility.";
       } else if (flags.isNvda || flags.isShop) {
         signal = "BEARISH"; confidence = 79;
         quote = isZh 
-          ? "系统存在隐形脆弱性：单点供应链与客户集中度隐藏肥尾风险（Fat Tails），不可将平静误以为无风险。"
+          ? "系統存在隱形脆弱性：單點供應鏈與客戶集中度隱藏肥尾風險（Fat Tails），不可將平靜誤以為無風險。"
           : "Fragility in the system is ignored. The distribution of returns has fat tails. High risk of negative black swan.";
       } else {
         signal = "NEUTRAL"; confidence = 70;
         quote = isZh 
-          ? "透过‘否定法’剔除高杠杆与无切身利益关联（No skin in the game）的企业。"
+          ? "透過「否定法」剔除高槓桿與無切身利益關聯（No skin in the game）的企業。"
           : "Apply via negativa: avoid excessive leverage and firms without insider skin in the game.";
       }
       break;
@@ -569,12 +581,12 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isRy || flags.isEnb) {
         signal = "BULLISH"; confidence = 80;
         quote = isZh 
-          ? "P/E 位于 10-12x 区间，股息率 >6%，具备防御型投资者的安全边际。"
+          ? "P/E 位於 10-12x 區間，股息率 >6%，具備防禦型投資者的安全邊際。"
           : "P/E in 10-12x range with >6% dividend yield meets defensive investor criteria.";
       } else {
         signal = "BEARISH"; confidence = 89;
         quote = isZh 
-          ? "股价显著高于格雷厄姆指数（Graham Number），缺乏传统清算与净流动资产（Net-Net）保护。"
+          ? "股價顯著高於葛拉漢指數（Graham Number），缺乏傳統清算與淨流動資產（Net-Net）保護。"
           : "Price trades significantly above Graham Number and liquidation value. Margin of safety is missing.";
       }
       break;
@@ -583,28 +595,28 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       signal = (flags.isShop || flags.isNvda || flags.isCsu) ? "BULLISH" : "NEUTRAL";
       confidence = 85;
       quote = isZh 
-        ? "典型的快速成长股或稳健型支柱企业，商业逻辑简单明了，各行各业都离不开它的服务。"
+        ? "典型的快速成長股或穩健型支柱企業，商業邏輯簡單明瞭，各行各業都離不開它的服務。"
         : "Fast grower or stalwart category. Everyday understandability with multi-year organic growth runway.";
       break;
 
     case 'druckenmiller':
       signal = "BULLISH"; confidence = 84;
       quote = isZh 
-        ? "宏观流动性与盈利预期持续上修，非对称回报比显著，顺势而为。"
+        ? "宏觀流動性與盈利預期持續上修，非對稱回報比顯著，順勢而為。"
         : "Secular liquidity and uninterrupted upward estimate revisions create compelling asymmetric momentum.";
       break;
 
     case 'ackman':
       signal = "BULLISH"; confidence = 78;
       quote = isZh 
-        ? "行业龙头地位不可动摇，现金流极为充沛且具有对抗通胀的强大调价能力。"
+        ? "行業龍頭地位不可動搖，現金流極為充沛且具有對抗通膨的強大調價能力。"
         : "Dominant market leadership with predictable cash generation and strong inflation-hedging pricing power.";
       break;
 
     case 'fisher':
       signal = "BULLISH"; confidence = 82;
       quote = isZh 
-        ? "草根调研（Scuttlebutt）确认其客户粘性极高，研发管线产出比卓越，管理层深具远见。"
+        ? "草根調研（Scuttlebutt）確認其客戶黏性極高，研發管線產出比卓越，管理層深具遠見。"
         : "Scuttlebutt research confirms extraordinary R&D pipeline and unmatched customer stickiness.";
       break;
 
@@ -612,12 +624,12 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
       if (flags.isRy || flags.isEnb) {
         signal = "BULLISH"; confidence = 82;
         quote = isZh 
-          ? "符合低风险原则（Dhandho）：下行空间极其有限，股息收益确凿。"
+          ? "符合低風險原則（Dhandho）：下行空間極其有限，股息收益確鑿。"
           : "Passes Dhandho test: limited downside risk with reliable cash yield stream.";
       } else {
         signal = "BEARISH"; confidence = 85;
         quote = isZh 
-          ? "当前估值未能提供 50% 的安全边际，耐心等待市场因短期不确定性产生错杀。"
+          ? "當前估值未能提供 50% 的安全邊際，耐心等待市場因短期不確定性產生錯殺。"
           : "Fails the Dhandho rule: 'Heads I win, tails I lose a lot' at elevated multiples.";
       }
       break;
@@ -625,7 +637,7 @@ function generateSageVerdict(sage, ticker, flags, isZh) {
     case 'damodaran':
       signal = "NEUTRAL"; confidence = 78;
       quote = isZh 
-        ? "现金流折现（DCF）模型要求未来十年维持高速复合增长才能支撑当前市值，故事需与数字谨慎校准。"
+        ? "現金流折現（DCF）模型要求未來十年維持高速複合增長才能支撐當前市值，故事需與數字謹慎校準。"
         : "DCF valuation narrative requires sustained CAGR to justify market cap. Story must align with rigorous numbers.";
       break;
 
@@ -653,17 +665,20 @@ function renderMockupSageCard(item, isZh) {
   card.className = 'mockup-sage-card';
   card.innerHTML = `
     <div class="card-top-row">
-      <div class="mockup-avatar-circle avatar-halo-${signalLower}">
+      <div class="mockup-avatar-circle avatar-halo-${signalLower}" title="Click to view profile" style="cursor: pointer;">
         ${sage.fallbackIcon}
       </div>
       <div class="card-sage-info">
-        <h4 class="card-sage-name">${displayName}</h4>
+        <h4 class="card-sage-name" style="cursor: pointer;">${displayName}</h4>
         <span class="mockup-badge-pill badge-${signalLower}">${signalText}</span>
       </div>
+      <button type="button" class="card-profile-action-btn" title="${isZh ? '查看大師檔案' : 'View Profile'}">
+        ℹ️
+      </button>
     </div>
 
     <div class="card-confidence-wrap">
-      <div class="confidence-text">${confidence}% ${isZh ? '确信度' : 'Confidence'}</div>
+      <div class="confidence-text">${confidence}% ${isZh ? '確信度' : 'Confidence'}</div>
       <div class="confidence-line-bg">
         <div class="confidence-line-fill ${signalLower}" style="width: ${confidence}%"></div>
       </div>
@@ -671,6 +686,14 @@ function renderMockupSageCard(item, isZh) {
 
     <p class="card-quote-text">"${quote}"</p>
   `;
+
+  const openAction = () => openSageProfile(sage.id);
+  const avatar = card.querySelector('.mockup-avatar-circle');
+  const nameEl = card.querySelector('.card-sage-name');
+  const btn = card.querySelector('.card-profile-action-btn');
+  if (avatar) avatar.addEventListener('click', openAction);
+  if (nameEl) nameEl.addEventListener('click', openAction);
+  if (btn) btn.addEventListener('click', openAction);
 
   elements.sageCardsGrid.appendChild(card);
 }
@@ -683,40 +706,40 @@ function updatePortfolioManagerSidebar(results, ticker, flags, isZh) {
   const currencySymbol = isCanadian ? 'C$' : '$';
 
   if (flags.isNvda) {
-    elements.riskLevelText.textContent = isZh ? "中度风险 / 稳健偏好" : "Moderate Risk";
+    elements.riskLevelText.textContent = isZh ? "中度風險 / 穩健偏好" : "Moderate Risk";
     elements.horizonValText.textContent = isZh ? "中期 (1-3年)" : "Medium Term";
     elements.entryZoneText.textContent = `${currencySymbol}780 - ${currencySymbol}810`;
     elements.stopLossText.textContent = `${currencySymbol}715`;
     elements.convictionValueText.textContent = isZh ? "高 (84%)" : "High (84%)";
-    elements.actionBadgeBox.textContent = isZh ? "执行操作: 逢回调分批建仓" : "ACTION: ACCUMULATE ON DIPS";
+    elements.actionBadgeBox.textContent = isZh ? "執行操作: 逢回檔分批建倉" : "ACTION: ACCUMULATE ON DIPS";
   } else if (flags.isShop) {
-    elements.riskLevelText.textContent = isZh ? "中高成长 / 科技动量" : "Growth Risk";
-    elements.horizonValText.textContent = isZh ? "中长期 (2-4年)" : "Med-Long Term";
+    elements.riskLevelText.textContent = isZh ? "中高成長 / 科技動量" : "Growth Risk";
+    elements.horizonValText.textContent = isZh ? "中長期 (2-4年)" : "Med-Long Term";
     elements.entryZoneText.textContent = `${currencySymbol}90 - ${currencySymbol}98`;
     elements.stopLossText.textContent = `${currencySymbol}82`;
     elements.convictionValueText.textContent = isZh ? "良好 (78%)" : "Good (78%)";
-    elements.actionBadgeBox.textContent = isZh ? "执行操作: 定投或突破跟进" : "ACTION: DCA & GROWTH HOLD";
+    elements.actionBadgeBox.textContent = isZh ? "執行操作: 定投或突破跟進" : "ACTION: DCA & GROWTH HOLD";
   } else if (flags.isRy || flags.isEnb || flags.isCsu) {
-    elements.riskLevelText.textContent = isZh ? "低风险 / 高股息防御" : "Low Risk (Defensive)";
-    elements.horizonValText.textContent = isZh ? "长期持有 (3-5年以上)" : "Long Term (3-5Y+)";
-    elements.entryZoneText.textContent = isZh ? "现价区间定投" : "Current Support";
+    elements.riskLevelText.textContent = isZh ? "低風險 / 高股息防禦" : "Low Risk (Defensive)";
+    elements.horizonValText.textContent = isZh ? "長期持有 (3-5年以上)" : "Long Term (3-5Y+)";
+    elements.entryZoneText.textContent = isZh ? "現價區間定投" : "Current Support";
     elements.stopLossText.textContent = "-12% Stop";
-    elements.convictionValueText.textContent = isZh ? "极高 (88%)" : "Very High (88%)";
-    elements.actionBadgeBox.textContent = isZh ? "执行操作: 买入并长期复利持有" : "ACTION: BUY & COMPOUND";
+    elements.convictionValueText.textContent = isZh ? "極高 (88%)" : "Very High (88%)";
+    elements.actionBadgeBox.textContent = isZh ? "執行操作: 買入並長期複利持有" : "ACTION: BUY & COMPOUND";
   } else if (bullish > bearish) {
-    elements.riskLevelText.textContent = isZh ? "中低风险" : "Low-Mod Risk";
-    elements.horizonValText.textContent = isZh ? "长期 (3-5年)" : "Long Term";
+    elements.riskLevelText.textContent = isZh ? "中低風險" : "Low-Mod Risk";
+    elements.horizonValText.textContent = isZh ? "長期 (3-5年)" : "Long Term";
     elements.entryZoneText.textContent = "Support Basis";
     elements.stopLossText.textContent = "-15% Stop";
     elements.convictionValueText.textContent = isZh ? "高 (85%)" : "High (85%)";
-    elements.actionBadgeBox.textContent = isZh ? "执行操作: 买入持有" : "ACTION: BUY & HOLD";
+    elements.actionBadgeBox.textContent = isZh ? "執行操作: 買入持有" : "ACTION: BUY & HOLD";
   } else {
-    elements.riskLevelText.textContent = isZh ? "谨慎 / 波动较高" : "Elevated Risk";
-    elements.horizonValText.textContent = isZh ? "观察期" : "Watch Period";
+    elements.riskLevelText.textContent = isZh ? "謹慎 / 波動較高" : "Elevated Risk";
+    elements.horizonValText.textContent = isZh ? "觀察期" : "Watch Period";
     elements.entryZoneText.textContent = "Wait Pullback";
     elements.stopLossText.textContent = "-10% Stop";
     elements.convictionValueText.textContent = isZh ? "中性 (55%)" : "Neutral (55%)";
-    elements.actionBadgeBox.textContent = isZh ? "执行操作: 保持观望" : "ACTION: WATCH & WAIT";
+    elements.actionBadgeBox.textContent = isZh ? "執行操作: 保持觀望" : "ACTION: WATCH & WAIT";
   }
 
   state.currentAnalysis = { ticker, results };
@@ -727,23 +750,80 @@ function copyMarkdownReport() {
   const { ticker, results } = state.currentAnalysis;
   const isZh = state.language === 'zh';
 
-  let md = isZh ? `# 🏛️ TitanCouncil 智囊团研判报告: ${ticker}\n\n` : `# 🏛️ TitanCouncil Boardroom Report: ${ticker}\n\n`;
+  let md = isZh ? `# 🏛️ TitanCouncil 智囊團研判報告: ${ticker}\n\n` : `# 🏛️ TitanCouncil Boardroom Report: ${ticker}\n\n`;
   results.forEach(r => {
     const sName = isZh ? r.sage.nameZh : r.sage.name;
     md += `### ${sName} — ${r.signal} (${r.confidence}%)\n`;
     md += `> "${r.quote}"\n\n`;
   });
-  md += isZh ? `## 投资总监最终裁决\n` : `## Portfolio Manager Verdict\n`;
+  md += isZh ? `## 投資總監最終裁決\n` : `## Portfolio Manager Verdict\n`;
   md += `- **Action**: ${elements.actionBadgeBox.textContent}\n`;
   md += `- **Conviction**: ${elements.convictionValueText.textContent}\n`;
   md += `- **Entry**: ${elements.entryZoneText.textContent} | **Stop Loss**: ${elements.stopLossText.textContent}\n`;
 
   navigator.clipboard.writeText(md).then(() => {
-    elements.copyReportBtn.textContent = isZh ? '✅ 已复制!' : '✅ Copied!';
+    elements.copyReportBtn.textContent = isZh ? '✅ 已複製!' : '✅ Copied!';
     setTimeout(() => {
-      elements.copyReportBtn.textContent = isZh ? '📋 复制 Markdown' : '📋 Copy Markdown';
+      elements.copyReportBtn.textContent = isZh ? '📋 複製 Markdown' : '📋 Copy Markdown';
     }, 2000);
   });
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+
+export function openSageProfile(sageId) {
+  const sage = SAGES.find(s => s.id === sageId);
+  if (!sage) return;
+
+  const isZh = state.language === 'zh';
+  const modal = document.getElementById('sageProfileModal');
+  if (!modal) return;
+
+  document.getElementById('profileAvatar').textContent = sage.fallbackIcon;
+  document.getElementById('sageProfileModalTitle').textContent = isZh ? sage.nameZh : sage.name;
+  document.getElementById('profileTitle').textContent = isZh ? sage.titleZh : sage.title;
+  document.getElementById('profileFirm').textContent = sage.firm || 'Institutional Investor';
+  document.getElementById('profileCategory').textContent = isZh 
+    ? (PRESET_FILTERS[sage.category]?.labelZh || sage.category)
+    : (PRESET_FILTERS[sage.category]?.label || sage.category);
+  document.getElementById('profileTrackRecord').textContent = sage.trackRecord || 'Multi-decade compounding record';
+  document.getElementById('profileBio').textContent = isZh ? (sage.bioZh || sage.bio) : sage.bio;
+  document.getElementById('profilePhilosophy').textContent = '"' + (isZh ? sage.philosophyZh : sage.philosophy) + '"';
+
+  // Metrics
+  const metricsEl = document.getElementById('profileMetrics');
+  if (metricsEl) {
+    metricsEl.innerHTML = '';
+    (sage.metrics || []).forEach(m => {
+      const span = document.createElement('span');
+      span.className = 'profile-metric-badge';
+      span.textContent = m;
+      metricsEl.appendChild(span);
+    });
+  }
+
+  // Signature Bets
+  const betsEl = document.getElementById('profileSignatureBets');
+  if (betsEl) {
+    betsEl.innerHTML = '';
+    (sage.signatureBets || ['Long-term compounding holdings']).forEach(b => {
+      const li = document.createElement('li');
+      li.textContent = b;
+      betsEl.appendChild(li);
+    });
+  }
+
+  // Key Books
+  const booksEl = document.getElementById('profileKeyBooks');
+  if (booksEl) {
+    booksEl.innerHTML = '';
+    (sage.keyBooks || ['Published investment memos & letters']).forEach(bk => {
+      const li = document.createElement('li');
+      li.textContent = bk;
+      booksEl.appendChild(li);
+    });
+  }
+
+  modal.classList.remove('hidden');
+}
