@@ -105,7 +105,7 @@ function updateEngineUI() {
   if (state.engine === 'deepseek') {
     elements.engineToggleBtn.classList.add('deepseek-active');
     if (elements.engineIcon) elements.engineIcon.textContent = '🧠';
-    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek R1' : 'DeepSeek R1';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = 'DeepSeek';
   } else if (state.engine === 'auto') {
 
     elements.engineToggleBtn.classList.add('auto-active');
@@ -130,7 +130,7 @@ function attachEventListeners() {
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
   });
 
-  // AI Engine Switcher Button (Gemini 3.7 <-> DeepSeek R1 <-> Auto)
+  // AI Engine Switcher Button (Gemini 3.7 <-> DeepSeek <-> Auto)
   if (elements.engineToggleBtn) {
     elements.engineToggleBtn.addEventListener('click', () => {
       if (state.engine === 'gemini') state.engine = 'deepseek';
@@ -140,6 +140,7 @@ function attachEventListeners() {
       updateEngineUI();
     });
   }
+
 
 
 
@@ -507,17 +508,15 @@ function renderSkeletonCards(selectedSages) {
   });
 }
 
+// Deliberation via AI API (Google Gemini / DeepSeek) through Cloudflare Pages Function
 
-// Deliberation via AI API (Google Gemini / DeepSeek V4) through Cloudflare Pages Function
 async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   const isDeepSeek = state.engine === 'deepseek';
   elements.statusMessage.textContent = isZh 
-    ? (isDeepSeek ? '正在透過 DeepSeek-R1 深度思維鏈研判中...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
-    : (isDeepSeek ? 'Executing deep Chain of Thought deliberation via DeepSeek-R1...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
+    ? (isDeepSeek ? '正在透過 DeepSeek 深度思維鏈研判中...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
+    : (isDeepSeek ? 'Executing deep deliberation via DeepSeek...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
   elements.progressBarFill.style.width = '60%';
-
-
 
   const MAX_RETRIES = 2; // Strict bound: Maximum 2 attempts total (1 initial + 1 retry)
   let lastError = null;
@@ -563,7 +562,6 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
       lastError = new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
       continue;
     }
-
 
     const rawData = await response.json().catch(() => ({}));
 
@@ -615,14 +613,26 @@ function renderFullAnalysis(data, ticker) {
 
   // Render LLM Thinking Mode Process Banner if model generated thought tokens
   if (data.thinkingContent && data.thinkingContent.trim().length > 0) {
+    const activeModelId = data.modelUsed || (state.engine === 'deepseek' ? 'deepseek-v4-flash' : 'gemini-3.7-flash');
     const thinkingCard = document.createElement('div');
     thinkingCard.className = 'llm-thinking-card';
     thinkingCard.innerHTML = `
       <div class="llm-thinking-header">
         <div class="llm-thinking-title">
           <span class="thinking-brain-icon">🧠</span>
-          <span class="thinking-title-text">${isZh ? 'LLM 深度思考與推理歷程 (Thinking Process Log)' : 'LLM Deep Thinking & Reasoning Process'}</span>
-          <span class="thinking-badge">${data.modelUsed || 'Thinking Mode'}</span>
+          <span class="thinking-title-text">${isZh ? 'LLM 深度思考與推理歷程' : 'LLM Deep Thinking & Reasoning Log'}</span>
+          <span class="thinking-badge" title="Active Model ID">Model: ${activeModelId}</span>
+        </div>
+        <button type="button" class="thinking-toggle-btn">
+          <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
+          <span class="thinking-toggle-arrow">▼</span>
+        </button>
+      </div>
+      <div class="llm-thinking-body hidden">
+        <pre class="llm-thinking-text"></pre>
+      </div>
+    `;
+n class="thinking-badge">${data.modelUsed || 'Thinking Mode'}</span>
         </div>
         <button type="button" class="thinking-toggle-btn">
           <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
