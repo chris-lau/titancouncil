@@ -435,7 +435,7 @@ Respond ONLY in valid JSON matching this schema:
             ],
             response_format: { type: 'json_object' },
             stream: true,
-            temperature: 0.7,
+            temperature: 0.3,
             max_tokens: 8192
           }
         }
@@ -520,7 +520,7 @@ Respond ONLY in valid JSON matching this schema:
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
 
         const generationConfig = {
-          temperature: 0.7,
+          temperature: 0.3,
           maxOutputTokens: 8192,
           ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
