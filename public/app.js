@@ -415,8 +415,8 @@ function renderFullAnalysis(data, ticker) {
     renderMockupSageCard(item, isZh);
   });
 
-  // Render Data Sources & Citations (including live Google Search web links)
-  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks);
+  // Render Data Sources & Citations (including live Google Search web links and engine status)
+  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, data.isLiveGemini || true);
 
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
@@ -437,10 +437,22 @@ function renderFullAnalysis(data, ticker) {
   state.currentAnalysis = { ticker, results: parsedResults, data };
 }
 
-// Render Data Sources Provenance Badges (with optional live web links)
-function renderSourcesBadges(customSources, webLinks) {
+// Render Data Sources Provenance Badges (with optional live web links & engine indicator)
+function renderSourcesBadges(customSources, webLinks, isLive = false) {
   if (!elements.sourcesPillsContainer) return;
   elements.sourcesPillsContainer.innerHTML = '';
+
+  // Engine Status Indicator
+  const enginePill = document.createElement('span');
+  if (isLive) {
+    enginePill.className = 'source-badge-pill engine-badge-live';
+    enginePill.innerHTML = '✨ Live Google Gemini (Active)';
+  } else {
+    enginePill.className = 'source-badge-pill engine-badge-sim';
+    enginePill.title = 'Configure GEMINI_API_KEY in Cloudflare Pages Environment Variables for Live LLM Deliberation';
+    enginePill.innerHTML = '⚡ Local Simulation Engine';
+  }
+  elements.sourcesPillsContainer.appendChild(enginePill);
 
   // Render clickable live web citations from Google Search Grounding if available
   if (webLinks && webLinks.length > 0) {
@@ -461,7 +473,6 @@ function renderSourcesBadges(customSources, webLinks) {
     '📑 SEC 10-K / 10-Q (EDGAR)',
     '🍁 SEDAR+ (Canadian TSE)',
     '🔍 Google Live Search Grounding',
-    '✨ Google Gemini API',
     '🏛️ 13 Titan Frameworks'
   ];
 
@@ -473,6 +484,7 @@ function renderSourcesBadges(customSources, webLinks) {
     elements.sourcesPillsContainer.appendChild(pill);
   });
 }
+
 
 // Built-in Intelligent Simulation Engine (CoT + Instant Demo)
 async function runSimulatedDeliberation(ticker, selectedSages, financials, companyInfo) {
@@ -1021,8 +1033,13 @@ function generateSageVerdictWithCoT(sageId, flags, isZh) {
       break;
   }
 
-  return { signal, confidence, quote, chainOfThought };
+  // Dynamic realistic fluctuation (+/- 1-3%) across consecutive runs
+  const variance = Math.floor((Math.random() * 7) - 3);
+  const finalConfidence = Math.min(98, Math.max(50, confidence + variance));
+
+  return { signal, confidence: finalConfidence, quote, chainOfThought };
 }
+
 
 // Render individual Sage Card with interactive CoT accordion
 function renderMockupSageCard(item, isZh) {

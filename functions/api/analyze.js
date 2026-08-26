@@ -144,7 +144,7 @@ Respond ONLY in valid JSON matching this schema:
         ],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.2
+          temperature: 0.7
         }
       };
 
@@ -178,6 +178,9 @@ Respond ONLY in valid JSON matching this schema:
       }
     }
 
+    // Mark that this response was generated live by Google Gemini
+    parsedJson.isLiveGemini = true;
+
     // Extract live web search grounding citations if available
     const groundingChunks = geminiData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const webLinks = [];
@@ -193,6 +196,7 @@ Respond ONLY in valid JSON matching this schema:
     if (webLinks.length > 0) {
       parsedJson.groundingWebLinks = webLinks;
     }
+
 
     return new Response(JSON.stringify(parsedJson), {
       headers: {
