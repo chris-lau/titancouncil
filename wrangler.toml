@@ -5,7 +5,6 @@ pages_build_output_dir = "public"
 [ai]
 binding = "AI"
 
-# Optional Cloudflare secrets (can also be set via Cloudflare Dashboard):
+# Cloudflare Pages Environment Secret (Set in Cloudflare Pages Dashboard -> Settings -> Environment variables):
 # [vars]
-# GEMINI_API_KEY = ""
-# OPENAI_API_KEY = ""
+# GEMINI_API_KEY = "your-gemini-api-key"

@@ -18,8 +18,10 @@
   - Animated halo rings around titan avatars with glowing status badges (`BULLISH`, `NEUTRAL`, `BEARISH`).
   - Conviction score box, trade entry/exit zones, stop loss, and one-click Markdown & PDF export.
   - Collapsible **Financials Drawer** to paste raw earnings, 10-K snippets, and multiples.
-- **📱 100% Mobile & Tablet Responsive**: Touch-friendly horizontal swipe trays and responsive grid layouts.
-- **☁️ Cloudflare Pages Serverless Edge Worker**: Structured JSON engine with zero backend infrastructure.
+- **🧠 Chain of Thought (CoT) Deliberation**: Click the `🧠 Chain of Thought` button on each Titan card to inspect their step-by-step analytical reasoning (Circle of Competence → Moat & Returns → Margin of Safety → Valuation).
+- **👥 On-Demand 13-Titan Profiles**: Click the `👥` header button or any Titan avatar/name to open detailed institutional dossiers (firm, track record, philosophy, core metrics, signature bets, and key literature) with a one-click switcher.
+- **📚 Data Sources & Provenance**: View explicit citations for SEC 10-K/10-Q filings, SEDAR+ regulatory disclosures, and Titan financial models.
+- **✨ Powered Exclusively by Google Gemini**: Built-in Google Gemini API serverless edge orchestration configured via `GEMINI_API_KEY` environment secret.
 
 ---
 

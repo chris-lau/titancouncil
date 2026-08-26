@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TitanCouncil — AI Stock Investment Boardroom (US & Canadian TSE)</title>
-  <meta name="description" content="Summon 13 legendary investors to analyze any US or Canadian TSE stock. Zero setup, bilingual English & Chinese interface for Cloudflare.">
+  <meta name="description" content="Summon 13 legendary investors to analyze any US or Canadian TSE stock powered by Google Gemini. Chain of Thought, on-demand profiles, and bilingual interface.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
     <header class="app-header">
       <div class="header-brand">
         <h1 class="brand-title">TitanCouncil</h1>
-        <span class="brand-subtitle" id="i18nSubtitle">AI Stock Investment Boardroom</span>
+        <span class="brand-subtitle" id="i18nSubtitle">AI Stock Investment Boardroom (Powered by Google Gemini)</span>
       </div>
 
       <!-- Integrated Search Capsule -->
@@ -46,19 +46,20 @@
           </button>
         </div>
 
+        <!-- 13 Titans Directory Button -->
+        <button id="titansDirectoryBtn" class="header-icon-btn" title="13 Titans Directory & Profiles / 13位大師檔案庫" aria-label="Titans Directory">
+          👥
+        </button>
+
         <!-- Filter Guide / Help Button -->
         <button id="filterHelpBtn" class="header-icon-btn" title="Filter & Command Guide / 指令指南" aria-label="Filter Guide">
           💡
         </button>
 
         <!-- Language Switcher Pill Button (English / 中文) -->
-        <button id="langToggleBtn" class="lang-toggle-btn" title="Switch Language / 切换语言">
+        <button id="langToggleBtn" class="lang-toggle-btn" title="Switch Language / 切換語言">
           <span class="lang-globe">🌐</span>
           <span id="langCurrentText">中文</span>
-        </button>
-
-        <button id="settingsBtn" class="header-icon-btn" title="Settings & API Key" aria-label="Settings">
-          ⚙️
         </button>
       </div>
     </header>
@@ -123,7 +124,7 @@
       <!-- Left Column: Sage Verdict Cards Grid -->
       <section class="sages-column">
         <div class="column-header">
-          <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Titan Verdict Cards</h2>
+          <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Titan Verdict Cards & Chain of Thought</h2>
           <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
         </div>
 
@@ -132,7 +133,7 @@
           <div class="progress-bar-track">
             <div class="progress-bar-fill" id="progressBarFill"></div>
           </div>
-          <span class="progress-status-text" id="statusMessage">Summoning council...</span>
+          <span class="progress-status-text" id="statusMessage">Summoning council via Google Gemini...</span>
         </div>
 
         <!-- 2-Column Grid of Sage Cards -->
@@ -224,6 +225,17 @@
             </div>
           </div>
 
+          <!-- Data Sources & Provenance Box -->
+          <div class="sources-provenance-box" id="sourcesProvenanceBox">
+            <span class="sources-title" id="i18nSourcesTitle">📚 Data Sources & Citations</span>
+            <div class="sources-pill-list" id="sourcesPillsContainer">
+              <span class="source-badge-pill">📑 SEC 10-K / 10-Q</span>
+              <span class="source-badge-pill">🍁 SEDAR+ (TSX)</span>
+              <span class="source-badge-pill">✨ Google Gemini Intelligence</span>
+              <span class="source-badge-pill">🏛️ 13 Titan Frameworks</span>
+            </div>
+          </div>
+
           <!-- Action Buttons -->
           <div class="sidebar-action-buttons">
             <button id="copyReportBtn" class="sidebar-btn">
@@ -297,52 +309,7 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
-  <div class="modal-backdrop hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3 id="settingsModalTitle">⚙️ TitanCouncil Settings</h3>
-        <button id="closeSettingsBtn" class="modal-close-btn" aria-label="Close settings">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="providerSelect">AI Engine / Provider</label>
-          <select id="providerSelect" class="form-select">
-            <option value="demo">Demo Simulation Mode (Exact Signal Rules)</option>
-            <option value="cloudflare">Cloudflare Workers AI (Serverless Edge)</option>
-            <option value="gemini">Google Gemini API</option>
-            <option value="openai">OpenAI API (GPT-4o / GPT-4o-mini)</option>
-            <option value="anthropic">Anthropic Claude API</option>
-          </select>
-        </div>
-
-        <div class="form-group" id="apiKeyGroup">
-          <label for="apiKeyInput">API Key (Optional / Client BYOK)</label>
-          <input 
-            type="password" 
-            id="apiKeyInput" 
-            placeholder="Paste API key here (saved in local browser storage)..."
-            autocomplete="off"
-          >
-          <span class="field-hint">Leave blank to use Cloudflare Worker environment secret or Demo Mode.</span>
-        </div>
-
-        <div class="form-group">
-          <label for="languageSelect">Default Language / 預設語言</label>
-          <select id="languageSelect" class="form-select">
-            <option value="en">English</option>
-            <option value="zh">繁體中文 / Traditional Chinese</option>
-          </select>
-        </div>
-
-        <div class="modal-footer">
-          <button id="saveSettingsBtn" class="primary-btn">Save & Apply / 儲存並套用</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Titan Profile Modal (On Demand) -->
+  <!-- Titan Profile Modal (On Demand & Switchable) -->
   <div class="modal-backdrop hidden" id="sageProfileModal" role="dialog" aria-modal="true" aria-labelledby="sageProfileModalTitle">
     <div class="modal-dialog modal-dialog-wide">
       <div class="modal-header">
@@ -355,6 +322,12 @@
         </div>
         <button id="closeProfileBtn" class="modal-close-btn" aria-label="Close profile">✕</button>
       </div>
+
+      <!-- Quick Switcher Bar for all 13 Titans -->
+      <div class="profile-quick-switch" id="profileQuickSwitch">
+        <!-- Dynamically injected icons for one-click switching -->
+      </div>
+
       <div class="modal-body profile-modal-body">
         <div class="profile-meta-grid">
           <div class="profile-meta-item">
@@ -407,4 +380,3 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
-

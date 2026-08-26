@@ -307,7 +307,7 @@ export const GLOBAL_STOCKS = {
 // Bilingual Interface Dictionary
 export const I18N = {
   en: {
-    brandSubtitle: "AI Stock Investment Boardroom",
+    brandSubtitle: "AI Stock Investment Boardroom (Powered by Google Gemini)",
     summonBtn: "Summon Council",
     searchPlaceholder: "Ticker ($NVDA, SHOP.TO, RY.TO)...",
     allSages: "All 13 Titans",
@@ -318,8 +318,10 @@ export const I18N = {
     popularLabel: "US & TSE:",
     pasteFinancials: "📊 Paste Financials",
     deliberatingText: "{n} Titans Deliberating",
-    verdictCardsTitle: "Interactive Titan Verdict Cards",
+    verdictCardsTitle: "Interactive Titan Verdict Cards & Chain of Thought",
     viewProfile: "ℹ️ Titan Profile",
+    chainOfThought: "🧠 Chain of Thought (CoT)",
+    hideChainOfThought: "▲ Hide Chain of Thought",
     pmTitle: "Portfolio Manager Verdict",
     portfolioAlignment: "Portfolio Alignment",
     horizon: "Horizon",
@@ -327,12 +329,14 @@ export const I18N = {
     entryZone: "Entry Zone:",
     stopLoss: "Stop Loss:",
     convictionScore: "Conviction Score",
+    sourcesTitle: "📚 Data Sources & Citations",
     copyMarkdown: "📋 Copy Markdown",
     printPdf: "🖨️ Print / PDF",
-    disclaimer: "⚠️ Educational purposes only. Not financial advice."
+    disclaimer: "⚠️ Educational purposes only. Not financial advice.",
+    directoryBtnTitle: "Titans Directory & Profiles"
   },
   zh: {
-    brandSubtitle: "頂尖大師投資決策智囊團",
+    brandSubtitle: "頂尖大師投資決策智囊團（由 Google Gemini 驅動）",
     summonBtn: "召集智囊團",
     searchPlaceholder: "輸入美股/加股代碼 (如 NVDA, SHOP.TO, RY.TO)...",
     allSages: "全部 13 位巨頭",
@@ -343,8 +347,10 @@ export const I18N = {
     popularLabel: "美股與加股:",
     pasteFinancials: "📊 補充財務數據",
     deliberatingText: "{n} 位大師正在研判",
-    verdictCardsTitle: "投資巨頭獨立研判裁決卡",
+    verdictCardsTitle: "投資巨頭獨立研判裁決與思維鏈 (CoT)",
     viewProfile: "ℹ️ 大師檔案",
+    chainOfThought: "🧠 深入思維鏈 (CoT)",
+    hideChainOfThought: "▲ 收起思維鏈",
     pmTitle: "投資總監最終裁決",
     portfolioAlignment: "風險投資偏好對齊",
     horizon: "投資期限",
@@ -352,8 +358,10 @@ export const I18N = {
     entryZone: "建議買點:",
     stopLoss: "風控止損:",
     convictionScore: "綜合確信度",
+    sourcesTitle: "📚 數據來源與引註",
     copyMarkdown: "📋 複製 Markdown",
     printPdf: "🖨️ 匯出 PDF",
-    disclaimer: "⚠️ 僅供研究與教育使用，不構成任何投資建議。"
+    disclaimer: "⚠️ 僅供研究與教育使用，不構成任何投資建議。",
+    directoryBtnTitle: "13 位投資巨頭檔案庫"
   }
 };
