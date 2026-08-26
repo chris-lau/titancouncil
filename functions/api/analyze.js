@@ -191,13 +191,12 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution (DeepSeek-R1 Thinking Mode)
+    // 1. DeepSeek Engine Execution (DeepSeek-V4 Flash)
     // ==========================================
     async function executeDeepSeek() {
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured');
       
-      // deepseek-reasoner is DeepSeek's official reasoning/thinking model (DeepSeek-R1)
-      const deepseekModels = ['deepseek-reasoner', 'deepseek-chat'];
+      const deepseekModels = ['deepseek-v4-flash', 'deepseek-chat'];
       for (const dsModel of deepseekModels) {
         try {
           const reqBody = {
@@ -205,13 +204,9 @@ Respond ONLY in valid JSON matching this schema:
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
-            ]
+            ],
+            response_format: { type: 'json_object' }
           };
-
-          // deepseek-chat supports response_format json_object
-          if (dsModel === 'deepseek-chat') {
-            reqBody.response_format = { type: 'json_object' };
-          }
 
           const res = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
@@ -229,7 +224,7 @@ Respond ONLY in valid JSON matching this schema:
             const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
             json.thinkingContent = reasoning;
-            json.thinkingMode = true;
+            json.thinkingMode = Boolean(reasoning);
             json.modelUsed = dsModel;
             json.engine = 'deepseek';
             return json;
@@ -238,6 +233,7 @@ Respond ONLY in valid JSON matching this schema:
           // Continue to next deepseek model
         }
       }
+
       throw new Error('DeepSeek API call failed');
     }
 

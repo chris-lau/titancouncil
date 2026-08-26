@@ -105,7 +105,7 @@ function updateEngineUI() {
   if (state.engine === 'deepseek') {
     elements.engineToggleBtn.classList.add('deepseek-active');
     if (elements.engineIcon) elements.engineIcon.textContent = '🧠';
-    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek R1' : 'DeepSeek R1';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek V4' : 'DeepSeek V4';
   } else if (state.engine === 'auto') {
     elements.engineToggleBtn.classList.add('auto-active');
     if (elements.engineIcon) elements.engineIcon.textContent = '🔄';
@@ -116,6 +116,7 @@ function updateEngineUI() {
     if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'Gemini 3.7' : 'Gemini 3.7';
   }
 }
+
 
 function attachEventListeners() {
   // Summon Button & Enter Key
@@ -506,15 +507,15 @@ function renderSkeletonCards(selectedSages) {
 }
 
 
-// Deliberation via Google Gemini API through Cloudflare Pages Function with Transparent Retry Notifications
-// Deliberation via AI API (Google Gemini / DeepSeek) through Cloudflare Pages Function
+// Deliberation via AI API (Google Gemini / DeepSeek V4) through Cloudflare Pages Function
 async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   const isDeepSeek = state.engine === 'deepseek';
   elements.statusMessage.textContent = isZh 
-    ? (isDeepSeek ? '正在透過 DeepSeek-R1 深度思維鏈研判中...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
-    : (isDeepSeek ? 'Executing deep Chain of Thought deliberation via DeepSeek-R1...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
+    ? (isDeepSeek ? '正在透過 DeepSeek-V4 Flash 執行深度研判...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
+    : (isDeepSeek ? 'Executing deep deliberation via DeepSeek-V4 Flash...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
   elements.progressBarFill.style.width = '60%';
+
 
   const MAX_RETRIES = 2; // Strict bound: Maximum 2 attempts total (1 initial + 1 retry)
   let lastError = null;
@@ -680,11 +681,20 @@ function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed =
 
   // Format Model Name for Pill Display
   let modelLabel = 'Gemini 3.7 Flash';
-  if (modelUsed.includes('reasoner')) modelLabel = 'DeepSeek-R1 (Thinking)';
-  else if (modelUsed.includes('deepseek')) modelLabel = 'DeepSeek-V3';
-  else if (modelUsed.includes('3.7')) modelLabel = isThinking ? 'Gemini 3.7 Flash (Thinking)' : 'Gemini 3.7 Flash';
-  else if (modelUsed.includes('2.5')) modelLabel = 'Gemini 2.5 Flash';
-  else if (modelUsed.includes('2.0')) modelLabel = 'Gemini 2.0 Flash';
+  if (modelUsed.includes('v4') || modelUsed.includes('flash') && modelUsed.includes('deepseek')) {
+    modelLabel = isThinking ? 'DeepSeek V4 Flash (Thinking)' : 'DeepSeek V4 Flash';
+  } else if (modelUsed.includes('reasoner')) {
+    modelLabel = 'DeepSeek-R1 (Thinking)';
+  } else if (modelUsed.includes('deepseek')) {
+    modelLabel = 'DeepSeek-V3';
+  } else if (modelUsed.includes('3.7')) {
+    modelLabel = isThinking ? 'Gemini 3.7 Flash (Thinking)' : 'Gemini 3.7 Flash';
+  } else if (modelUsed.includes('2.5')) {
+    modelLabel = 'Gemini 2.5 Flash';
+  } else if (modelUsed.includes('2.0')) {
+    modelLabel = 'Gemini 2.0 Flash';
+  }
+
 
   // Engine Status Indicator
   const enginePill = document.createElement('span');
