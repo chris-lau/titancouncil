@@ -1,12 +1,12 @@
 // Cloudflare Pages Function: /api/analyze
-// Executes TitanCouncil Deliberation on Cloudflare Workers Edge using full skill.md rules
+// Executes TitanCouncil Deliberation on Cloudflare Workers Edge
 
 export async function onRequestPost(context) {
   const { request, env } = context;
 
   try {
     const body = await request.json();
-    const { ticker, sages, financials, language = 'en', provider = 'cloudflare', apiKey } = body;
+    const { ticker, sages, financials, language = 'en', provider = 'auto', apiKey } = body;
 
     if (!ticker) {
       return new Response(JSON.stringify({ error: 'Ticker symbol is required' }), {
@@ -17,7 +17,7 @@ export async function onRequestPost(context) {
 
     const isZh = language === 'zh' || language === 'zh-CN';
 
-    const systemPrompt = `You are the TitanCouncil Council Coordinator.
+    const systemPrompt = `You are the TitanCouncil Coordinator.
 Orchestrate the council of legendary investors to analyze the stock: "${ticker}".
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
@@ -48,7 +48,7 @@ Respond in strict JSON format:
       "sageName": "Sage Name",
       "signal": "BULLISH" | "BEARISH" | "NEUTRAL",
       "confidence": 85,
-      "reasoning": "1-2 sentence pithy quote in authentic sage voice"
+      "reasoning": "1-2 sentence quote in authentic sage voice"
     }
   ],
   "riskManager": {
@@ -68,23 +68,9 @@ Respond in strict JSON format:
   }
 }`;
 
-    // 1. Cloudflare Workers AI
-    if (provider === 'cloudflare' && env.AI) {
-      const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Analyze ticker ${ticker}` }
-        ]
-      });
-
-      return new Response(JSON.stringify({ result: aiResponse.response }), {
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    // 2. Google Gemini API
+    // Priority 1: Google Gemini API (via GEMINI_API_KEY environment variable or client key)
     const geminiKey = apiKey || env.GEMINI_API_KEY;
-    if (provider === 'gemini' && geminiKey) {
+    if ((provider === 'gemini' || provider === 'auto') && geminiKey) {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,16 +80,18 @@ Respond in strict JSON format:
         })
       });
 
-      const geminiData = await res.json();
-      const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-      return new Response(rawText, {
-        headers: { 'Content-Type': 'application/json' }
-      });
+      if (res.ok) {
+        const geminiData = await res.json();
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        return new Response(rawText, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
 
-    // 3. OpenAI API
+    // Priority 2: OpenAI API (via OPENAI_API_KEY environment variable or client key)
     const openaiKey = apiKey || env.OPENAI_API_KEY;
-    if (provider === 'openai' && openaiKey) {
+    if ((provider === 'openai' || provider === 'auto') && openaiKey) {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -120,16 +108,63 @@ Respond in strict JSON format:
         })
       });
 
-      const openAiData = await res.json();
-      const content = openAiData.choices?.[0]?.message?.content || '{}';
-      return new Response(content, {
+      if (res.ok) {
+        const openAiData = await res.json();
+        const content = openAiData.choices?.[0]?.message?.content || '{}';
+        return new Response(content, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // Priority 3: Anthropic Claude API (via ANTHROPIC_API_KEY environment variable or client key)
+    const anthropicKey = apiKey || env.ANTHROPIC_API_KEY;
+    if ((provider === 'anthropic' || provider === 'auto') && anthropicKey) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-3-5-haiku-latest',
+          max_tokens: 2000,
+          system: systemPrompt,
+          messages: [
+            { role: 'user', content: `Analyze ticker ${ticker}. Respond ONLY with the requested JSON.` }
+          ]
+        })
+      });
+
+      if (res.ok) {
+        const claudeData = await res.json();
+        const content = claudeData.content?.[0]?.text || '{}';
+        return new Response(content, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    // Priority 4: Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)
+    if (env.AI) {
+      const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Analyze ticker ${ticker}` }
+        ]
+      });
+
+      return new Response(JSON.stringify({ result: aiResponse.response }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
+    // Fallback message
     return new Response(JSON.stringify({
-      message: 'Deliberation processed via edge engine.'
+      error: 'No AI key or Cloudflare Workers AI binding detected. Please configure GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in Cloudflare Environment Variables.'
     }), {
+      status: 503,
       headers: { 'Content-Type': 'application/json' }
     });
 
