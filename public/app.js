@@ -87,7 +87,7 @@ function attachEventListeners() {
     if (e.key === 'Enter') handleSummon();
   });
   elements.tickerInput.addEventListener('input', e => {
-    const cleanTicker = normalizeTicker(e.target.value);
+    const { cleanTicker } = parseInputQuery(e.target.value);
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
   });
 
@@ -171,12 +171,51 @@ function applyLanguage(lang) {
   elements.i18nDisclaimer.textContent = dict.disclaimer;
 }
 
-function normalizeTicker(input) {
-  let clean = input.replace('$', '').trim().toUpperCase();
-  if (clean.startsWith('TSE:') || clean.startsWith('TSX:')) {
-    clean = clean.replace(/^(TSE|TSX):/, '') + '.TO';
+// Parses both simple tickers and typed filter commands (e.g. "NVDA --value", "SHOP.TO @buffett @taleb", "/council AAPL")
+function parseInputQuery(rawInput) {
+  let text = (rawInput || '').trim();
+  text = text.replace(/^\/council\s*/i, ''); // Strip leading /council if typed
+
+  let explicitFilter = null;
+  const mentionedSageIds = new Set();
+
+  // Check typed command flags: --value, --growth, --risk, --all, or compare
+  if (/\s+--value\b/i.test(text)) {
+    explicitFilter = 'value';
+    text = text.replace(/\s+--value\b/gi, '');
+  } else if (/\s+--growth\b/i.test(text)) {
+    explicitFilter = 'growth';
+    text = text.replace(/\s+--growth\b/gi, '');
+  } else if (/\s+--risk\b/i.test(text)) {
+    explicitFilter = 'risk';
+    text = text.replace(/\s+--risk\b/gi, '');
+  } else if (/\s+--all\b/i.test(text)) {
+    explicitFilter = 'all';
+    text = text.replace(/\s+--all\b/gi, '');
   }
-  return clean;
+
+  // Check typed @mentions: e.g. @buffett, @munger, @taleb, @burry, @wood
+  const atMatches = text.match(/@([a-zA-Z]+)/g);
+  if (atMatches) {
+    atMatches.forEach(m => {
+      const nameKey = m.replace('@', '').toLowerCase();
+      const matchSage = SAGES.find(s => s.id.includes(nameKey) || s.name.toLowerCase().includes(nameKey));
+      if (matchSage) mentionedSageIds.add(matchSage.id);
+    });
+    text = text.replace(/@[a-zA-Z]+/g, '');
+  }
+
+  let cleanTicker = text.replace('$', '').trim().toUpperCase();
+  if (cleanTicker.startsWith('TSE:') || cleanTicker.startsWith('TSX:')) {
+    cleanTicker = cleanTicker.replace(/^(TSE|TSX):/, '') + '.TO';
+  }
+  if (!cleanTicker) cleanTicker = 'NVDA';
+
+  return { cleanTicker, explicitFilter, mentionedSageIds };
+}
+
+function normalizeTicker(input) {
+  return parseInputQuery(input).cleanTicker;
 }
 
 function getCompanyDetails(ticker) {
@@ -237,9 +276,22 @@ function saveSettings() {
 
 // Main Deliberation Trigger
 async function handleSummon() {
-  let rawTicker = elements.tickerInput.value.trim();
-  if (!rawTicker) rawTicker = '$NVDA';
-  const ticker = normalizeTicker(rawTicker);
+  const rawInput = elements.tickerInput.value.trim() || '$NVDA';
+  const { cleanTicker, explicitFilter, mentionedSageIds } = parseInputQuery(rawInput);
+  
+  // Handle typed filter flags or @mentions in search input
+  if (mentionedSageIds.size > 0) {
+    state.selectedSageIds = mentionedSageIds;
+    document.querySelectorAll('.mockup-pill').forEach(pill => pill.classList.remove('active'));
+  } else if (explicitFilter) {
+    state.activeFilter = explicitFilter;
+    state.selectedSageIds = new Set(PRESET_FILTERS[explicitFilter].ids);
+    document.querySelectorAll('.mockup-pill').forEach(pill => {
+      pill.classList.toggle('active', pill.dataset.filter === explicitFilter);
+    });
+  }
+
+  const ticker = cleanTicker;
   const companyInfo = getCompanyDetails(ticker);
 
   state.ticker = ticker;
