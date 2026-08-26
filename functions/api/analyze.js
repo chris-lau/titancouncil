@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: /api/analyze
-// Executes Market Sages Deliberation on Cloudflare Workers Edge using full skill.md rules
+// Executes TitanCouncil Deliberation on Cloudflare Workers Edge using full skill.md rules
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -17,7 +17,7 @@ export async function onRequestPost(context) {
 
     const isZh = language === 'zh' || language === 'zh-CN';
 
-    const systemPrompt = `You are the Market Sages Council Coordinator.
+    const systemPrompt = `You are the TitanCouncil Council Coordinator.
 Orchestrate the council of legendary investors to analyze the stock: "${ticker}".
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.

@@ -1,4 +1,4 @@
-# 🧙 Market Sages Web — AI Stock Investment Council
+# 🏛️ TitanCouncil — AI Stock Investment Boardroom
 
 > **Summon 13 legendary investors to analyze any US or Canadian TSE stock — in a sleek, institutional glassmorphic web dashboard with zero setup.**
 
@@ -6,11 +6,11 @@
 
 ## ✨ Features
 
-- **🏛️ The Council of 13 Sages**: Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, and Rakesh Jhunjhunwala.
+- **🏛️ The Council of 13 Titans**: Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, and Rakesh Jhunjhunwala.
 - **🌐 Instant Bilingual Toggle**: One-click English ↔ 简体/繁體中文 switcher across all UI labels, frameworks, and quotes.
 - **🍁 Canadian TSE / TSX Support**: Native recognition for Canadian tickers (`$SHOP.TO`, `$RY.TO`, `$TD.TO`, `$CNR.TO`, `$ENB.TO`, `$CSU.TO`, etc.) with CAD currency valuation context.
 - **📊 Zero-Command Visual UI**:
-  - One-click council filter pills (`All 13 Sages`, `Value Council`, `Growth & Tech`, `Risk & Tail Risk`, `Compare`).
+  - One-click council filter pills (`All 13 Titans`, `Value Council`, `Growth & Tech`, `Risk & Tail Risk`, `Compare`).
   - Interactive investor avatar halo rings with `BULLISH` (Emerald), `NEUTRAL` (Amber), and `BEARISH` (Crimson) status badges.
   - Speedometer arc gauges for portfolio risk alignment and trade horizon.
   - Conviction score box, trade entry/exit zones, and one-click Markdown / PDF export.
@@ -53,7 +53,7 @@ Open **`http://localhost:3000`** in your browser.
 npx wrangler login
 
 # 2. Deploy to Cloudflare Pages
-npx wrangler pages deploy public --project-name=market-sages-web
+npx wrangler pages deploy public --project-name=titancouncil
 ```
 
 ---
@@ -61,7 +61,7 @@ npx wrangler pages deploy public --project-name=market-sages-web
 ## 📁 Repository Structure
 
 ```
-market-sages-web/
+titancouncil/
 ├── public/
 │   ├── index.html        # Semantic HTML5 dashboard
 │   ├── app.css           # Institutional Navy Slate & Sapphire Design System
@@ -70,6 +70,7 @@ market-sages-web/
 ├── functions/
 │   └── api/
 │       └── analyze.js    # Cloudflare Pages serverless edge deliberation function
+├── skill.md              # Master investor frameworks reference
 ├── wrangler.toml         # Cloudflare Workers / Pages configuration
 ├── package.json          # Preview & deployment scripts
 └── README.md             # Project documentation
@@ -79,4 +80,4 @@ market-sages-web/
 
 ## ⚖️ Disclaimer
 
-*Market Sages Web is for educational and research purposes only. It does not constitute financial or investment advice. Always perform your own due diligence.*
+*TitanCouncil is for educational and research purposes only. It does not constitute financial or investment advice. Always perform your own due diligence.*

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Market Sages — AI Stock Investment Council (US & Canadian TSE)</title>
+  <title>TitanCouncil — AI Stock Investment Boardroom (US & Canadian TSE)</title>
   <meta name="description" content="Summon 13 legendary investors to analyze any US or Canadian TSE stock. Zero setup, bilingual English & Chinese interface for Cloudflare.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,14 +17,14 @@
 
   <!-- Main App Shell -->
   <div class="app-layout">
-    <!-- Top Nav Header (Mockup Layout with Language Switcher) -->
+    <!-- Top Nav Header -->
     <header class="app-header">
       <div class="header-brand">
-        <h1 class="brand-title">Market Sages</h1>
-        <span class="brand-subtitle" id="i18nSubtitle">AI Stock Investment Council</span>
+        <h1 class="brand-title">TitanCouncil</h1>
+        <span class="brand-subtitle" id="i18nSubtitle">AI Stock Investment Boardroom</span>
       </div>
 
-      <!-- Integrated Mockup Search Capsule -->
+      <!-- Integrated Search Capsule -->
       <div class="header-search-capsule">
         <div class="capsule-search-group">
           <span class="search-lens-icon">🔍</span>
@@ -41,7 +41,7 @@
             <span class="company-name-tag" id="headerCompanyName">NVIDIA Corporation</span>
           </div>
           <button id="summonBtn" class="summon-capsule-btn">
-            <span class="btn-avatar-icon">🧙‍♂️</span>
+            <span class="btn-avatar-icon">🏛️</span>
             <span class="btn-label" id="i18nSummonBtn">Summon Council</span>
           </button>
         </div>
@@ -63,7 +63,7 @@
       <div class="mockup-filter-pills" id="filterPillsContainer">
         <button class="mockup-pill active" data-filter="all">
           <span class="pill-svg">⊞</span>
-          <span id="i18nAllSages">All 13 Sages</span>
+          <span id="i18nAllSages">All 13 Titans</span>
         </button>
         <button class="mockup-pill" data-filter="value">
           <span class="pill-svg">💲</span>
@@ -91,7 +91,7 @@
             <button class="preset-pill" data-ticker="NVDA">$NVDA</button>
             <button class="preset-pill" data-ticker="AAPL">$AAPL</button>
             <button class="preset-pill" data-ticker="TSLA">$TSLA</button>
-            <button class="preset-pill tse-badge-pill" data-ticker="SHOP.TO" title="Toronto Stock Exchange">$SHOP.TO 🍁</button>
+            <button class="preset-pill tse-badge-pill" data-ticker="SHOP.TO" title="Shopify (Toronto Stock Exchange)">$SHOP.TO 🍁</button>
             <button class="preset-pill tse-badge-pill" data-ticker="RY.TO" title="Royal Bank of Canada">$RY.TO 🍁</button>
             <button class="preset-pill tse-badge-pill" data-ticker="ENB.TO" title="Enbridge Inc.">$ENB.TO 🍁</button>
             <button class="preset-pill tse-badge-pill" data-ticker="CSU.TO" title="Constellation Software">$CSU.TO 🍁</button>
@@ -113,13 +113,13 @@
       </div>
     </section>
 
-    <!-- Main Content: 2-Column Split matching Mockup -->
+    <!-- Main Content: 2-Column Split -->
     <main class="council-workspace">
       <!-- Left Column: Sage Verdict Cards Grid -->
       <section class="sages-column">
         <div class="column-header">
-          <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Sage Verdict Cards</h2>
-          <span class="council-tally" id="councilTallyText">13 Sages Deliberating</span>
+          <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Titan Verdict Cards</h2>
+          <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
         </div>
 
         <!-- Deliberation Progress Bar -->
@@ -141,7 +141,7 @@
         <div class="pm-verdict-panel" id="pmVerdictPanel">
           <h3 class="pm-panel-title" id="i18nPMTitle">Portfolio Manager Verdict</h3>
 
-          <!-- Dual Speedometer / Arc Gauges (Exact Mockup Match) -->
+          <!-- Dual Speedometer / Arc Gauges -->
           <div class="dual-gauges-container">
             <!-- Left Gauge: Portfolio Alignment / Risk -->
             <div class="gauge-card">
@@ -245,7 +245,7 @@
   <div class="modal-backdrop hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 id="settingsModalTitle">⚙️ Application Settings</h3>
+        <h3 id="settingsModalTitle">⚙️ TitanCouncil Settings</h3>
         <button id="closeSettingsBtn" class="modal-close-btn" aria-label="Close settings">✕</button>
       </div>
       <div class="modal-body">

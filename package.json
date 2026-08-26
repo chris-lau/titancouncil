@@ -1,7 +1,7 @@
 {
-  "name": "market-sages-web",
+  "name": "titancouncil-web",
   "version": "0.3.2",
-  "description": "Sleek, modern web application for Market Sages on Cloudflare Pages",
+  "description": "Sleek, modern web application for TitanCouncil on Cloudflare Pages",
   "scripts": {
     "dev": "npx wrangler pages dev public",
     "deploy": "npx wrangler pages deploy public --project-name=market-sages",

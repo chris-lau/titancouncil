@@ -1,4 +1,4 @@
-// Sages metadata, philosophies, avatars, bilingual labels, and Canadian TSE support
+// TitanCouncil: Sages metadata, philosophies, avatars, bilingual labels, and Canadian TSE support
 export const SAGES = [
   {
     id: "buffett",
@@ -173,8 +173,8 @@ export const SAGES = [
 
 export const PRESET_FILTERS = {
   all: {
-    label: "All 13 Sages",
-    labelZh: "全部 13 位智囊",
+    label: "All 13 Titans",
+    labelZh: "全部 13 位巨头",
     icon: "⊞",
     ids: SAGES.map(s => s.id)
   },
@@ -229,18 +229,18 @@ export const GLOBAL_STOCKS = {
 // Bilingual Interface Dictionary
 export const I18N = {
   en: {
-    brandSubtitle: "AI Stock Investment Council",
+    brandSubtitle: "AI Stock Investment Boardroom",
     summonBtn: "Summon Council",
     searchPlaceholder: "Ticker ($NVDA, SHOP.TO, RY.TO)...",
-    allSages: "All 13 Sages",
+    allSages: "All 13 Titans",
     valueCouncil: "Value Council",
     growthTech: "Growth & Tech",
     riskTail: "Risk & Tail Risk",
     compare: "Compare",
-    popularLabel: "Presets:",
+    popularLabel: "US & TSE:",
     pasteFinancials: "📊 Paste Financials",
-    deliberatingText: "{n} Sages Deliberating",
-    verdictCardsTitle: "Interactive Sage Verdict Cards",
+    deliberatingText: "{n} Titans Deliberating",
+    verdictCardsTitle: "Interactive Titan Verdict Cards",
     pmTitle: "Portfolio Manager Verdict",
     portfolioAlignment: "Portfolio Alignment",
     horizon: "Horizon",
@@ -256,15 +256,15 @@ export const I18N = {
     brandSubtitle: "顶尖大师投资决策智囊团",
     summonBtn: "召集智囊团",
     searchPlaceholder: "输入美股/加股代码 (如 NVDA, SHOP.TO, RY.TO)...",
-    allSages: "全部 13 位智囊",
+    allSages: "全部 13 位巨头",
     valueCouncil: "价值派智囊",
     growthTech: "成长与科技",
     riskTail: "风险与黑天鹅",
     compare: "双股对比",
-    popularLabel: "精选标的:",
+    popularLabel: "美股与加股:",
     pasteFinancials: "📊 补充财务数据",
     deliberatingText: "{n} 位大师正在研判",
-    verdictCardsTitle: "大师独立研判裁决卡",
+    verdictCardsTitle: "投资巨头独立研判裁决卡",
     pmTitle: "投资总监最终裁决",
     portfolioAlignment: "风险投资偏好对齐",
     horizon: "投资期限",

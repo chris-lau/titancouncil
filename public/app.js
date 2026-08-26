@@ -5,11 +5,11 @@ const state = {
   selectedSageIds: new Set(SAGES.map(s => s.id)),
   activeFilter: 'all',
   ticker: 'NVDA',
-  language: localStorage.getItem('sages_language') || 'en',
+  language: localStorage.getItem('titancouncil_language') || 'en',
   financials: '',
   settings: {
-    provider: localStorage.getItem('sages_provider') || 'demo',
-    apiKey: localStorage.getItem('sages_api_key') || ''
+    provider: localStorage.getItem('titancouncil_provider') || 'demo',
+    apiKey: localStorage.getItem('titancouncil_api_key') || ''
   },
   currentAnalysis: null,
   isAnalyzing: false
@@ -137,7 +137,7 @@ function attachEventListeners() {
 
 function setLanguage(lang) {
   state.language = lang;
-  localStorage.setItem('sages_language', lang);
+  localStorage.setItem('titancouncil_language', lang);
   elements.languageSelect.value = lang;
   applyLanguage(lang);
   handleSummon();
@@ -226,8 +226,8 @@ function saveSettings() {
   state.settings.apiKey = elements.apiKeyInput.value.trim();
   const selectedLang = elements.languageSelect.value;
 
-  localStorage.setItem('sages_provider', state.settings.provider);
-  localStorage.setItem('sages_api_key', state.settings.apiKey);
+  localStorage.setItem('titancouncil_provider', state.settings.provider);
+  localStorage.setItem('titancouncil_api_key', state.settings.apiKey);
 
   if (selectedLang !== state.language) {
     setLanguage(selectedLang);
@@ -602,7 +602,7 @@ function copyMarkdownReport() {
   const { ticker, results } = state.currentAnalysis;
   const isZh = state.language === 'zh';
 
-  let md = isZh ? `# 🧙 Market Sages 智囊团研判报告: ${ticker}\n\n` : `# 🧙 Market Sages Council: ${ticker}\n\n`;
+  let md = isZh ? `# 🧙 TitanCouncil 智囊团研判报告: ${ticker}\n\n` : `# 🧙 TitanCouncil Council: ${ticker}\n\n`;
   results.forEach(r => {
     const sName = isZh ? r.sage.nameZh : r.sage.name;
     md += `### ${sName} — ${r.signal} (${r.confidence}%)\n`;
