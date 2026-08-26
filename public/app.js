@@ -494,7 +494,7 @@ function renderSkeletonCards(selectedSages) {
   const activeModel = isDeepSeek ? 'deepseek-v4-flash' : 'gemini-3.7-flash';
   elements.sageCardsGrid.innerHTML = '';
 
-  // 1. Prominent Live Processing & Thinking Banner
+  // 1. Prominent Live Processing & Streaming Thinking Banner
   const liveBanner = document.createElement('div');
   liveBanner.className = 'llm-thinking-card live-processing-banner';
   liveBanner.innerHTML = `
@@ -506,11 +506,45 @@ function renderSkeletonCards(selectedSages) {
       </div>
       <div class="live-pulse-indicator">
         <span class="pulse-dot"></span>
-        <span style="font-size: 0.78rem; color: #38bdf8; font-weight: 600;">${isZh ? '深度思維運算中...' : 'Deliberating...'}</span>
+        <span style="font-size: 0.78rem; color: #38bdf8; font-weight: 600;">${isZh ? '即時深度思考中...' : 'Live Reasoning...'}</span>
+      </div>
+    </div>
+    
+    <!-- Live Multi-Line Scrollable Thinking Terminal Box -->
+    <div class="live-thinking-terminal-wrap">
+      <div class="live-thinking-terminal-toolbar">
+        <span>${isZh ? '💭 即時思維鏈串流 (Live Chain of Thought Stream)' : '💭 Live Chain of Thought Stream'}</span>
+        <span id="liveAutoScrollBtn" class="autoscroll-badge">${isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON'}</span>
+      </div>
+      <div id="liveThinkingStreamBody" class="live-thinking-terminal-body">
+        <span id="liveThinkingStreamText">${isZh ? '正在初始化 13 位傳奇巨頭思維模型並調取即時財務數據...' : 'Initializing 13 Titan framework models & grounding live market filings...'}</span><span class="live-thinking-cursor"></span>
       </div>
     </div>
   `;
   elements.sageCardsGrid.appendChild(liveBanner);
+
+  // Auto-scroll listener & user pause handling
+  const streamBody = liveBanner.querySelector('#liveThinkingStreamBody');
+  const autoScrollBtn = liveBanner.querySelector('#liveAutoScrollBtn');
+
+  if (streamBody && autoScrollBtn) {
+    streamBody.addEventListener('scroll', () => {
+      const isAtBottom = streamBody.scrollHeight - streamBody.scrollTop - streamBody.clientHeight < 35;
+      if (!isAtBottom) {
+        autoScrollBtn.classList.add('paused');
+        autoScrollBtn.textContent = isZh ? '自動滾動: 暫停 (點擊恢復)' : 'Auto-Scroll: PAUSED (Click to resume)';
+      } else {
+        autoScrollBtn.classList.remove('paused');
+        autoScrollBtn.textContent = isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON';
+      }
+    });
+
+    autoScrollBtn.addEventListener('click', () => {
+      autoScrollBtn.classList.remove('paused');
+      autoScrollBtn.textContent = isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON';
+      streamBody.scrollTop = streamBody.scrollHeight;
+    });
+  }
 
   // 2. Titan Card Skeletons
   selectedSages.forEach(sage => {
@@ -605,7 +639,6 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
     }
 
     // Handle Live SSE Stream
-    const liveBannerText = document.querySelector('.live-processing-banner .llm-thinking-title .thinking-title-text');
     let accumulatedThinking = '';
     let finalJsonData = null;
 
@@ -640,10 +673,15 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
           if (eventType === 'chunk') {
             if (parsed.type === 'thinking' && parsed.chunk) {
               accumulatedThinking += parsed.chunk;
-              if (liveBannerText) {
-                // Show live streaming thinking snippet
-                const snippet = accumulatedThinking.slice(-90).replace(/\n/g, ' ');
-                liveBannerText.textContent = `🧠 ${snippet}`;
+              const streamTextEl = document.getElementById('liveThinkingStreamText');
+              const streamBodyEl = document.getElementById('liveThinkingStreamBody');
+              const autoScrollBtnEl = document.getElementById('liveAutoScrollBtn');
+
+              if (streamTextEl) {
+                streamTextEl.textContent = accumulatedThinking;
+                if (streamBodyEl && (!autoScrollBtnEl || !autoScrollBtnEl.classList.contains('paused'))) {
+                  streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
+                }
               }
               elements.progressBarFill.style.width = '70%';
             } else if (parsed.type === 'content') {
@@ -669,6 +707,7 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
       return;
     }
   }
+
 
   if (lastError && !state.abortController?.signal?.aborted) {
     throw lastError;
