@@ -108,20 +108,21 @@
           </div>
         </div>
 
-        <button class="drawer-toggle-small" id="drawerToggleBtn" aria-expanded="false">
-          <span id="i18nPasteFinancials">📊 Paste Financials</span>
+        <button class="drawer-toggle-small" id="drawerToggleBtn" aria-expanded="false" title="Add custom directives or considerations for the Titans">
+          <span id="i18nCustomInstructions">📝 Additional Instructions</span>
         </button>
       </div>
 
-      <!-- Expandable Financials Drawer -->
+      <!-- Expandable Additional Instructions Drawer -->
       <div class="drawer-content hidden" id="drawerContent">
         <textarea 
-          id="financialsInput" 
-          placeholder="Optional: Paste raw earnings figures, TSE CAD numbers, 10-K notes, or ratios here (e.g. Revenue $60.9B, P/E 55x, FCF $27B, Gross Margin 74.6%)..."
+          id="instructionsInput" 
+          placeholder="Optional: Add specific scenarios, constraints, or directives for the Titans (e.g., 'Assume 25% tariff on foreign sales', 'Focus on 5-year dividend safety for retirement', 'Assess impact if cloud revenue growth slows to 10%')..."
           rows="2"
         ></textarea>
       </div>
     </section>
+
 
     <!-- Main Content: 2-Column Split -->
     <main class="council-workspace">

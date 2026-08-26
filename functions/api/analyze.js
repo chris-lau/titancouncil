@@ -6,7 +6,8 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    const { ticker, sages, financials, language = 'en' } = body;
+    const { ticker, sages, instructions, financials, language = 'en' } = body;
+    const userDirectives = instructions || financials || '';
 
     if (!ticker) {
       return new Response(JSON.stringify({ error: 'Ticker symbol is required' }), {
@@ -24,8 +25,11 @@ Use live Google Search to retrieve the latest real-time stock price, recent quar
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
 
-User-Provided Financial Notes: ${financials || 'None. Ground your deliberation on live Google Search results, SEC EDGAR 10-K/10-Q filings, and SEDAR+ (for Canadian TSE .TO tickers).'}.
+User Custom Directives & Considerations: ${userDirectives ? `"${userDirectives}"` : 'None. Perform standard multi-perspective deliberation.'}.
+${userDirectives ? 'MANDATORY: Every Titan and the Portfolio Manager MUST explicitly address, evaluate, and factor these user considerations (e.g. specific risk scenarios, tariffs, holding horizons, or growth assumptions) into their reasoning and Chain of Thought.' : ''}
+
 Output Language: ${isZh ? 'Traditional Chinese (繁體中文)' : 'English'}.
+
 
 CRITICAL REQUIREMENTS FOR TITAN-SPECIFIC EVIDENCE & SOURCES:
 - Each Titan MUST cite their own distinct, authentic data source and concrete quantitative data snippet relevant to their methodology.

@@ -6,7 +6,7 @@ const state = {
   activeFilter: 'all',
   ticker: 'NVDA',
   language: localStorage.getItem('titancouncil_language') || 'en',
-  financials: '',
+  instructions: '',
   currentAnalysis: null,
   isAnalyzing: false,
   activeProfileId: 'buffett'
@@ -27,7 +27,7 @@ const elements = {
   filterPillsContainer: document.getElementById('filterPillsContainer'),
   drawerToggleBtn: document.getElementById('drawerToggleBtn'),
   drawerContent: document.getElementById('drawerContent'),
-  financialsInput: document.getElementById('financialsInput'),
+  instructionsInput: document.getElementById('instructionsInput'),
   councilTallyText: document.getElementById('councilTallyText'),
   deliberationProgress: document.getElementById('deliberationProgress'),
   statusMessage: document.getElementById('statusMessage'),
@@ -57,10 +57,11 @@ const elements = {
   i18nRiskTail: document.getElementById('i18nRiskTail'),
   i18nCompare: document.getElementById('i18nCompare'),
   i18nPresetsLabel: document.getElementById('i18nPresetsLabel'),
-  i18nPasteFinancials: document.getElementById('i18nPasteFinancials'),
+  i18nCustomInstructions: document.getElementById('i18nCustomInstructions'),
   i18nVerdictCardsTitle: document.getElementById('i18nVerdictCardsTitle'),
   i18nPMTitle: document.getElementById('i18nPMTitle'),
   i18nPortfolioAlignment: document.getElementById('i18nPortfolioAlignment'),
+
   i18nHorizon: document.getElementById('i18nHorizon'),
   i18nTradeHorizon: document.getElementById('i18nTradeHorizon'),
   i18nEntryZone: document.getElementById('i18nEntryZone'),
@@ -205,9 +206,11 @@ function applyLanguage(lang) {
   if (elements.i18nRiskTail) elements.i18nRiskTail.textContent = dict.riskTail;
   if (elements.i18nCompare) elements.i18nCompare.textContent = dict.compare;
   if (elements.i18nPresetsLabel) elements.i18nPresetsLabel.textContent = dict.popularLabel;
-  if (elements.i18nPasteFinancials) elements.i18nPasteFinancials.textContent = dict.pasteFinancials;
+  if (elements.i18nCustomInstructions) elements.i18nCustomInstructions.textContent = dict.customInstructions;
+  if (elements.instructionsInput) elements.instructionsInput.placeholder = dict.instructionsPlaceholder;
   if (elements.i18nVerdictCardsTitle) elements.i18nVerdictCardsTitle.textContent = dict.verdictCardsTitle;
   if (elements.i18nPMTitle) elements.i18nPMTitle.textContent = dict.pmTitle;
+
   if (elements.i18nPortfolioAlignment) elements.i18nPortfolioAlignment.textContent = dict.portfolioAlignment;
   if (elements.i18nHorizon) elements.i18nHorizon.textContent = dict.horizon;
   if (elements.i18nTradeHorizon) elements.i18nTradeHorizon.textContent = dict.tradeHorizon;
@@ -308,7 +311,7 @@ async function handleSummon() {
   const companyInfo = getCompanyDetails(ticker);
 
   state.ticker = ticker;
-  state.financials = elements.financialsInput.value.trim();
+  state.instructions = elements.instructionsInput ? elements.instructionsInput.value.trim() : '';
   state.isAnalyzing = true;
 
   elements.headerCompanyName.textContent = `${companyInfo.name} (${companyInfo.currency})`;
@@ -328,7 +331,7 @@ async function handleSummon() {
   renderSkeletonCards(selectedSages);
 
   try {
-    await runGeminiDeliberation(ticker, selectedSages, state.financials);
+    await runGeminiDeliberation(ticker, selectedSages, state.instructions);
   } catch (err) {
     console.error('Google Gemini Deliberation Error:', err);
     renderDeliberationError(err, ticker, companyInfo);
@@ -410,7 +413,7 @@ function renderSkeletonCards(selectedSages) {
 
 
 // Deliberation via Google Gemini API through Cloudflare Pages Function
-async function runGeminiDeliberation(ticker, selectedSages, financials) {
+async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行即時思維鏈研判...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...';
   elements.progressBarFill.style.width = '60%';
@@ -423,13 +426,14 @@ async function runGeminiDeliberation(ticker, selectedSages, financials) {
       body: JSON.stringify({
         ticker,
         sages: selectedSages.map(s => s.name),
-        financials,
+        instructions,
         language: state.language
       })
     });
   } catch (networkErr) {
     throw new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
   }
+
 
   const rawData = await response.json().catch(() => ({}));
 
