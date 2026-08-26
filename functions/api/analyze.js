@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: /api/analyze
-// Executes Market Sages Deliberation on Cloudflare Workers Edge
+// Executes Market Sages Deliberation on Cloudflare Workers Edge using full skill.md rules
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -15,20 +15,40 @@ export async function onRequestPost(context) {
       });
     }
 
-    const systemPrompt = `You are the Market Sages Council Coordinator.
-Evaluate the stock "${ticker}" through the lens of the requested legendary investors: ${sages ? sages.join(', ') : 'All 13 Sages'}.
+    const isZh = language === 'zh' || language === 'zh-CN';
 
-User Financial Data provided: ${financials || 'None (use recent knowledge)'}
+    const systemPrompt = `You are the Market Sages Council Coordinator.
+Orchestrate the council of legendary investors to analyze the stock: "${ticker}".
+
+Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
+
+User-provided Financials: ${financials || 'None (use recent knowledge / estimates)'}.
+Output Language: ${isZh ? 'Chinese (Simplified/Traditional 中文)' : 'English'}.
+
+SAGE PHILOSOPHIES & RULES TO APPLY STRICTLY:
+1. Warren Buffett: Moats, ROE > 15%, low capex, owner earnings, margin of safety > 25%.
+2. Charlie Munger: Invert always, lollapalooza effects, ROIC > 15%, pricing power, management integrity.
+3. Benjamin Graham: Net-Net/NCAV, Graham Number √(22.5*EPS*BVPS), P/E < 15, current ratio > 2.0.
+4. Peter Lynch: PEG < 1.0, understandability, category (Fast Grower/Stalwart/Turnaround).
+5. Michael Burry: FCF Yield > 10%, EV/EBIT < 8.0, net debt/equity < 50%, contrarian sentiment.
+6. Cathie Wood: Exponential TAM growth, 5-yr CAGR > 25%, platform & network disruption.
+7. Stanley Druckenmiller: Macro tailwinds, earnings revision momentum, asymmetric payoff (3:1).
+8. Bill Ackman: Simple business, market dominance (#1 or #2), activist catalyst, strong FCF.
+9. Phil Fisher: 15-point scuttlebutt, R&D effectiveness, sales organization, management depth.
+10. Nassim Taleb: Antifragility, convexity, via negativa (avoid debt), skin in the game, Lindy effect, fat tail risk.
+11. Mohnish Pabrai: Downside protection first (Dhandho), margin of safety > 50%, cloning Buffett/Munger.
+12. Aswath Damodaran: Story + numbers, DCF intrinsic value, sustainable CAGR & operating margins, WACC.
+13. Rakesh Jhunjhunwala: Multi-year compounding, ROCE > 20%, patient conviction.
 
 Respond in strict JSON format:
 {
   "ticker": "${ticker}",
   "verdicts": [
     {
-      "sageName": "Name",
+      "sageName": "Sage Name",
       "signal": "BULLISH" | "BEARISH" | "NEUTRAL",
-      "confidence": 75,
-      "reasoning": "1-2 sentence authentic quote in sage's voice"
+      "confidence": 85,
+      "reasoning": "1-2 sentence pithy quote in authentic sage voice"
     }
   ],
   "riskManager": {
@@ -42,13 +62,13 @@ Respond in strict JSON format:
     "action": "BUY" | "HOLD" | "SELL" | "WATCH",
     "conviction": "HIGH" | "MEDIUM" | "LOW",
     "timeHorizon": "3-5 years",
-    "rationale": "2-3 sentences",
-    "entryStrategy": "Description",
-    "exitCriteria": "Description"
+    "rationale": "Synthesis summary",
+    "entryStrategy": "Entry guidelines",
+    "exitCriteria": "Exit conditions"
   }
 }`;
 
-    // 1. Cloudflare Workers AI (Zero external setup if deployed on Cloudflare)
+    // 1. Cloudflare Workers AI
     if (provider === 'cloudflare' && env.AI) {
       const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
         messages: [
@@ -107,7 +127,6 @@ Respond in strict JSON format:
       });
     }
 
-    // Fallback response
     return new Response(JSON.stringify({
       message: 'Deliberation processed via edge engine.'
     }), {
