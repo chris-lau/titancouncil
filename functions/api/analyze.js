@@ -289,24 +289,9 @@ Respond ONLY in valid JSON matching this schema:
                   }
                 } catch (pe) {}
               }
-            buffer += decoder.decode(new Uint8Array(), { stream: false });
-            if (buffer.trim() && buffer.startsWith('data:')) {
-              try {
-                const parsed = JSON.parse(buffer.slice(5).trim());
-                const delta = parsed.choices?.[0]?.delta || {};
-                if (delta.reasoning_content) {
-                  fullReasoning += delta.reasoning_content;
-                  if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
-                }
-                if (delta.content) {
-                  fullContent += delta.content;
-                  if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
-                }
-              } catch (e) {}
             }
 
             const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-
             const json = JSON.parse(cleaned);
             json.thinkingContent = fullReasoning;
             json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
@@ -341,7 +326,6 @@ Respond ONLY in valid JSON matching this schema:
           maxOutputTokens: 8192,
           ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
-
 
         try {
           // A. With Search Grounding + Stream
@@ -404,25 +388,11 @@ Respond ONLY in valid JSON matching this schema:
                   if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
                     groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
                   }
-              buffer += decoder.decode(new Uint8Array(), { stream: false });
-            if (buffer.trim() && buffer.startsWith('data:')) {
-              try {
-                const parsed = JSON.parse(buffer.slice(5).trim());
-                const parts = parsed.candidates?.[0]?.content?.parts || [];
-                parts.forEach(part => {
-                  if (part.thought) {
-                    thoughts += (part.text || '');
-                    if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
-                  } else if (part.text) {
-                    rawText += part.text;
-                    if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
-                  }
-                });
-              } catch (e) {}
+                } catch (pe) {}
+              }
             }
 
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-
             const json = JSON.parse(cleaned);
             json.thinkingContent = thoughts;
             json.thinkingMode = is37;
@@ -444,6 +414,7 @@ Respond ONLY in valid JSON matching this schema:
       }
       throw new Error('Gemini API calls failed');
     }
+
 
     // Check if client requested streaming SSE
     const isStream = url.searchParams.get('stream') === 'true' || request.headers.get('accept')?.includes('text/event-stream');
