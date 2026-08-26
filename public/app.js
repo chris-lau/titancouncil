@@ -632,19 +632,9 @@ function renderFullAnalysis(data, ticker) {
         <pre class="llm-thinking-text"></pre>
       </div>
     `;
-n class="thinking-badge">${data.modelUsed || 'Thinking Mode'}</span>
-        </div>
-        <button type="button" class="thinking-toggle-btn">
-          <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
-          <span class="thinking-toggle-arrow">▼</span>
-        </button>
-      </div>
-      <div class="llm-thinking-body hidden">
-        <pre class="llm-thinking-text"></pre>
-      </div>
-    `;
 
     const textEl = thinkingCard.querySelector('.llm-thinking-text');
+
     if (textEl) textEl.textContent = data.thinkingContent.trim();
 
     const toggleBtn = thinkingCard.querySelector('.thinking-toggle-btn');
