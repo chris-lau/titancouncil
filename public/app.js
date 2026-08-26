@@ -610,12 +610,53 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
 
 // Render Structured JSON Output into Dashboard UI
 function renderFullAnalysis(data, ticker) {
-
   const isZh = state.language === 'zh';
   elements.sageCardsGrid.innerHTML = '';
 
+  // Render LLM Thinking Mode Process Banner if model generated thought tokens
+  if (data.thinkingContent && data.thinkingContent.trim().length > 0) {
+    const thinkingCard = document.createElement('div');
+    thinkingCard.className = 'llm-thinking-card';
+    thinkingCard.innerHTML = `
+      <div class="llm-thinking-header">
+        <div class="llm-thinking-title">
+          <span class="thinking-brain-icon">🧠</span>
+          <span class="thinking-title-text">${isZh ? 'LLM 深度思考與推理歷程 (Thinking Process Log)' : 'LLM Deep Thinking & Reasoning Process'}</span>
+          <span class="thinking-badge">${data.modelUsed || 'Thinking Mode'}</span>
+        </div>
+        <button type="button" class="thinking-toggle-btn">
+          <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
+          <span class="thinking-toggle-arrow">▼</span>
+        </button>
+      </div>
+      <div class="llm-thinking-body hidden">
+        <pre class="llm-thinking-text"></pre>
+      </div>
+    `;
+
+    const textEl = thinkingCard.querySelector('.llm-thinking-text');
+    if (textEl) textEl.textContent = data.thinkingContent.trim();
+
+    const toggleBtn = thinkingCard.querySelector('.thinking-toggle-btn');
+    const body = thinkingCard.querySelector('.llm-thinking-body');
+    const arrow = thinkingCard.querySelector('.thinking-toggle-arrow');
+    const label = thinkingCard.querySelector('.thinking-toggle-label');
+
+    if (toggleBtn && body) {
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = body.classList.contains('hidden');
+        body.classList.toggle('hidden', !isHidden);
+        if (arrow) arrow.textContent = isHidden ? '▲' : '▼';
+        if (label) label.textContent = isHidden ? (isZh ? '收合思考過程' : 'Collapse Thoughts') : (isZh ? '展開思考過程' : 'Expand Thoughts');
+      });
+    }
+
+    elements.sageCardsGrid.appendChild(thinkingCard);
+  }
+
   const verdicts = data.verdicts || [];
   const parsedResults = [];
+
 
   verdicts.forEach(v => {
     const sageObj = SAGES.find(s => 
