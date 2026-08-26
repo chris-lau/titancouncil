@@ -532,7 +532,7 @@ function renderSkeletonCards(selectedSages) {
   });
 }
 
-// Deliberation via AI API (Google Gemini / DeepSeek) through Cloudflare Pages Function
+// Deliberation via AI API (Google Gemini / DeepSeek) through Cloudflare Pages Function (SSE Streaming)
 async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   const isDeepSeek = state.engine === 'deepseek';
@@ -568,9 +568,12 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
 
     let response;
     try {
-      response = await fetch('/api/analyze', {
+      response = await fetch('/api/analyze?stream=true', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
+        },
         signal: state.abortController?.signal,
         body: JSON.stringify({
           ticker,
@@ -586,48 +589,92 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
       continue;
     }
 
-    const rawData = await response.json().catch(() => ({}));
-
     if (!response.ok) {
-      const errMsg = rawData.error || `HTTP ${response.status}: Failed to reach Google Gemini API`;
+      const rawData = await response.json().catch(() => ({}));
+      const errMsg = rawData.error || `HTTP ${response.status}: Failed to reach AI endpoint`;
       const isHighDemand = response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('busy');
       
       const err = new Error(errMsg);
       err.status = response.status;
-      err.details = rawData.error;
       lastError = err;
 
       if (isHighDemand && attempt < MAX_RETRIES) {
-        // Continue loop to retry
         continue;
       }
       throw err;
     }
 
-    let jsonOutput = rawData;
-    if (typeof rawData === 'string') {
-      try {
-        jsonOutput = JSON.parse(rawData);
-      } catch {
-        throw new Error(isZh ? '無法解析 Gemini 回傳之結構化 JSON' : 'Could not parse structured JSON response from Gemini');
+    // Handle Live SSE Stream
+    const liveBannerText = document.querySelector('.live-processing-banner .llm-thinking-title .thinking-title-text');
+    let accumulatedThinking = '';
+    let finalJsonData = null;
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      if (state.abortController?.signal?.aborted) return;
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+
+      for (const eventBlock of events) {
+        if (!eventBlock.trim()) continue;
+        const lines = eventBlock.split('\n');
+        let eventType = 'message';
+        let dataPayload = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) eventType = line.replace('event:', '').trim();
+          if (line.startsWith('data:')) dataPayload = line.replace('data:', '').trim();
+        }
+
+        if (!dataPayload) continue;
+
+        try {
+          const parsed = JSON.parse(dataPayload);
+          if (eventType === 'chunk') {
+            if (parsed.type === 'thinking' && parsed.chunk) {
+              accumulatedThinking += parsed.chunk;
+              if (liveBannerText) {
+                // Show live streaming thinking snippet
+                const snippet = accumulatedThinking.slice(-90).replace(/\n/g, ' ');
+                liveBannerText.textContent = `🧠 ${snippet}`;
+              }
+              elements.progressBarFill.style.width = '70%';
+            } else if (parsed.type === 'content') {
+              elements.progressBarFill.style.width = '85%';
+            }
+          } else if (eventType === 'complete') {
+            finalJsonData = parsed;
+            if (accumulatedThinking && !finalJsonData.thinkingContent) {
+              finalJsonData.thinkingContent = accumulatedThinking;
+            }
+          } else if (eventType === 'error') {
+            throw new Error(parsed.error || 'Streaming error');
+          }
+        } catch (pe) {
+          if (eventType === 'error') throw pe;
+        }
       }
     }
 
-    if (jsonOutput.error) {
-      const err = new Error(jsonOutput.error);
-      err.status = response.status;
-      throw err;
+    if (finalJsonData) {
+      if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
+      renderFullAnalysis(finalJsonData, ticker);
+      return;
     }
-
-    if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
-    renderFullAnalysis(jsonOutput, ticker);
-    return;
   }
 
   if (lastError && !state.abortController?.signal?.aborted) {
     throw lastError;
   }
 }
+
 
 // Render Structured JSON Output into Dashboard UI
 function renderFullAnalysis(data, ticker) {

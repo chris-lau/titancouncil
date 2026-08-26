@@ -191,14 +191,13 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution (V4-Flash / R1-Reasoner / V3-Chat)
+    // 1. DeepSeek Engine Execution (Streaming Thinking Mode)
     // ==========================================
-    async function executeDeepSeek() {
-
+    async function executeDeepSeek(onChunk) {
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured in Cloudflare Environment Variables.');
       
       const candidateConfigs = [
-        // 1. DeepSeek V4 Flash (if enabled on endpoint)
+        // 1. DeepSeek V4 Flash (with streaming)
         {
           model: 'deepseek-v4-flash',
           body: {
@@ -208,10 +207,11 @@ Respond ONLY in valid JSON matching this schema:
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
             response_format: { type: 'json_object' },
+            stream: true,
             max_tokens: 4096
           }
         },
-        // 2. DeepSeek Reasoner (R1 Thinking Model: no response_format / temperature per API spec)
+        // 2. DeepSeek Reasoner (R1 Thinking Model: streaming)
         {
           model: 'deepseek-reasoner',
           body: {
@@ -220,10 +220,11 @@ Respond ONLY in valid JSON matching this schema:
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
+            stream: true,
             max_tokens: 8192
           }
         },
-        // 3. DeepSeek Chat (V3 Standard: supports json_object and temperature)
+        // 3. DeepSeek Chat (V3 Standard: streaming)
         {
           model: 'deepseek-chat',
           body: {
@@ -233,12 +234,12 @@ Respond ONLY in valid JSON matching this schema:
               { role: 'user', content: `Execute detailed investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
             response_format: { type: 'json_object' },
+            stream: true,
             temperature: 0.7,
             max_tokens: 4096
           }
         }
       ];
-
 
       let lastDeepSeekError = '';
 
@@ -254,13 +255,43 @@ Respond ONLY in valid JSON matching this schema:
           });
 
           if (res.ok) {
-            const dsData = await res.json();
-            const content = dsData.choices?.[0]?.message?.content || '{}';
-            const reasoning = dsData.choices?.[0]?.message?.reasoning_content || '';
-            const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+            let fullContent = '';
+            let fullReasoning = '';
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data:')) continue;
+                const dataStr = trimmed.slice(5).trim();
+                if (dataStr === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const delta = parsed.choices?.[0]?.delta || {};
+                  if (delta.reasoning_content) {
+                    fullReasoning += delta.reasoning_content;
+                    if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
+                  }
+                  if (delta.content) {
+                    fullContent += delta.content;
+                    if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
+                  }
+                } catch (pe) {}
+              }
+            }
+
+            const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
-            json.thinkingContent = reasoning;
-            json.thinkingMode = Boolean(reasoning) || (config.model === 'deepseek-reasoner');
+            json.thinkingContent = fullReasoning;
+            json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
             json.modelUsed = config.model;
             json.engine = 'deepseek';
             return json;
@@ -279,23 +310,21 @@ Respond ONLY in valid JSON matching this schema:
     // ==========================================
     // 2. Google Gemini Engine Execution (Gemini 3.7 Thinking Mode)
     // ==========================================
-
-    async function executeGemini() {
+    async function executeGemini(onChunk) {
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
       const geminiModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
       for (const model of geminiModels) {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-
-        // Configure thinking mode for Gemini 3.7 Flash (thinkingBudget: 2048 tokens)
         const is37 = model.includes('3.7');
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
+
         const generationConfig = {
           temperature: 0.7,
           ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
 
         try {
-          // A. With Search Grounding + Thinking Mode
+          // A. With Search Grounding + Stream
           let res = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -306,19 +335,58 @@ Respond ONLY in valid JSON matching this schema:
             })
           });
 
-          if (res.ok) {
-            const geminiData = await res.json();
-            const parts = geminiData.candidates?.[0]?.content?.parts || [];
-            let rawText = '{}';
-            let thoughts = '';
-
-            parts.forEach(part => {
-              if (part.thought) {
-                thoughts += (part.text || '') + '\n';
-              } else if (part.text) {
-                rawText = part.text;
-              }
+          // B. Fallback to standard stream without search if tool error
+          if (!res.ok) {
+            res = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
+                generationConfig: {
+                  ...generationConfig,
+                  responseMimeType: "application/json"
+                }
+              })
             });
+          }
+
+          if (res.ok) {
+            let rawText = '';
+            let thoughts = '';
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let groundingChunks = [];
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data:')) continue;
+                const dataStr = trimmed.slice(5).trim();
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const parts = parsed.candidates?.[0]?.content?.parts || [];
+                  parts.forEach(part => {
+                    if (part.thought) {
+                      thoughts += (part.text || '');
+                      if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
+                    } else if (part.text) {
+                      rawText += part.text;
+                      if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
+                    }
+                  });
+                  if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+                    groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
+                  }
+                } catch (pe) {}
+              }
+            }
 
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
@@ -326,8 +394,7 @@ Respond ONLY in valid JSON matching this schema:
             json.thinkingMode = is37;
             json.modelUsed = model;
             json.engine = 'gemini';
-            
-            const groundingChunks = geminiData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
             const webLinks = [];
             groundingChunks.forEach(chunk => {
               if (chunk.web?.title && chunk.web?.uri) {
@@ -337,42 +404,6 @@ Respond ONLY in valid JSON matching this schema:
             if (webLinks.length > 0) json.groundingWebLinks = webLinks;
             return json;
           }
-
-          // B. Fallback without search tool + JSON schema + Thinking Mode
-          res = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
-              generationConfig: {
-                ...generationConfig,
-                responseMimeType: "application/json"
-              }
-            })
-          });
-
-          if (res.ok) {
-            const geminiData = await res.json();
-            const parts = geminiData.candidates?.[0]?.content?.parts || [];
-            let rawText = '{}';
-            let thoughts = '';
-
-            parts.forEach(part => {
-              if (part.thought) {
-                thoughts += (part.text || '') + '\n';
-              } else if (part.text) {
-                rawText = part.text;
-              }
-            });
-
-            const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-            const json = JSON.parse(cleaned);
-            json.thinkingContent = thoughts;
-            json.thinkingMode = is37;
-            json.modelUsed = model;
-            json.engine = 'gemini';
-            return json;
-          }
         } catch (e) {
           // Continue to next candidate model
         }
@@ -380,25 +411,78 @@ Respond ONLY in valid JSON matching this schema:
       throw new Error('Gemini API calls failed');
     }
 
+    // Check if client requested streaming SSE
+    const isStream = url.searchParams.get('stream') === 'true' || request.headers.get('accept')?.includes('text/event-stream');
 
-    // ==========================================
-    // 3. Engine Dispatch & Failover
-    // ==========================================
+    if (isStream) {
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
+
+      const sendEvent = (event, data) => {
+        const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        return writer.write(encoder.encode(payload));
+      };
+
+      // Execute asynchronously and stream tokens
+      (async () => {
+        try {
+          let finalJson = null;
+          const onChunk = (chunkData) => {
+            sendEvent('chunk', chunkData);
+          };
+
+          if (engine === 'deepseek') {
+            finalJson = await executeDeepSeek(onChunk);
+          } else if (engine === 'gemini') {
+            finalJson = await executeGemini(onChunk);
+          } else {
+            if (geminiKey) {
+              try {
+                finalJson = await executeGemini(onChunk);
+              } catch (gErr) {
+                if (deepseekKey) finalJson = await executeDeepSeek(onChunk);
+                else throw gErr;
+              }
+            } else if (deepseekKey) {
+              finalJson = await executeDeepSeek(onChunk);
+            }
+          }
+
+          if (finalJson) {
+            finalJson.isLive = true;
+            await sendEvent('complete', finalJson);
+          } else {
+            await sendEvent('error', { error: 'Deliberation failed' });
+          }
+        } catch (streamErr) {
+          await sendEvent('error', { error: streamErr.message });
+        } finally {
+          await writer.close();
+        }
+      })();
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive'
+        }
+      });
+    }
+
+    // Non-streaming fallback
     if (engine === 'deepseek') {
       parsedJson = await executeDeepSeek();
     } else if (engine === 'gemini') {
       parsedJson = await executeGemini();
     } else {
-      // Auto mode: Try Gemini first, fallback to DeepSeek if Gemini fails/busy
       if (geminiKey) {
         try {
           parsedJson = await executeGemini();
         } catch (geminiErr) {
-          if (deepseekKey) {
-            parsedJson = await executeDeepSeek();
-          } else {
-            throw geminiErr;
-          }
+          if (deepseekKey) parsedJson = await executeDeepSeek();
+          else throw geminiErr;
         }
       } else if (deepseekKey) {
         parsedJson = await executeDeepSeek();
@@ -430,3 +514,4 @@ Respond ONLY in valid JSON matching this schema:
     });
   }
 }
+
