@@ -26,6 +26,7 @@ export const SAGES = [
     title: "The Architect of Mental Models",
     titleZh: "多元思維模型大師",
     fallbackIcon: "👓",
+    isHistorical: true, // Deceased Nov 2023 — simulated philosophical framework
     category: "value",
     firm: "Berkshire Hathaway / Daily Journal",
     trackRecord: "19.8% annualized with Berkshire; 24% annualized with Wheeler, Munger & Co. (1962–1975).",
@@ -45,6 +46,7 @@ export const SAGES = [
     title: "The Godfather of Value Investing",
     titleZh: "價值投資之父",
     fallbackIcon: "📜",
+    isHistorical: true, // Deceased Sep 1976 — simulated philosophical framework
     category: "value",
     firm: "Graham-Newman Corp / Columbia University",
     trackRecord: "17.4% annualized return (1936–1956) during the Great Depression and post-war volatility.",
@@ -235,6 +237,7 @@ export const SAGES = [
     title: "The Big Bull",
     titleZh: "印度多頭之王",
     fallbackIcon: "🐂",
+    isHistorical: true, // Deceased Aug 2022 — simulated philosophical framework
     category: "value",
     firm: "Rare Enterprises (In Memoriam)",
     trackRecord: "Turned $100 (5,000 INR) in 1985 into a multi-billion dollar fortune ($5.8B net worth).",

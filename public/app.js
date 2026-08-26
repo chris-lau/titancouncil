@@ -841,12 +841,28 @@ function renderFullAnalysis(data, ticker) {
     const action = pm.action || 'ACCUMULATE ON DIPS';
     const conviction = pm.conviction || 'HIGH';
     const horizon = pm.timeHorizon || '2-4 Years';
-    const execution = pm.execution || {};
+    const rawExecution = pm.execution || {};
+
+    // Deterministic boundary validation: StopLoss < EntryLow ≤ EntryHigh
+    const currentPrice = parseFloat((data.livePrice || '').replace(/[^0-9.]/g, '')) || null;
+    const execution = validateAndFixExecutionLevels(rawExecution, currentPrice, isZh);
 
     elements.riskLevelText.textContent = isZh ? "穩健/中度風險" : "Moderate Risk";
     elements.horizonValText.textContent = horizon;
-    elements.entryZoneText.textContent = execution.entryZone || "$780 - $810";
-    elements.stopLossText.textContent = execution.stopLoss || "$715";
+    elements.entryZoneText.textContent = execution.entryZone || "--";
+    elements.stopLossText.textContent = execution.stopLoss || "--";
+    if (execution.wasCorrected) {
+      // Append a small correction notice to the entry zone display
+      const existingBadge = document.getElementById('executionCorrectedBadge');
+      if (!existingBadge && elements.entryZoneText) {
+        const badge = document.createElement('span');
+        badge.id = 'executionCorrectedBadge';
+        badge.title = isZh ? '價格起融區間已自動終止驗證校正' : 'Price bounds auto-validated & corrected';
+        badge.style.cssText = 'font-size:0.68rem;color:#f59e0b;margin-left:0.35rem;cursor:help;';
+        badge.textContent = '⚠️';
+        elements.entryZoneText.parentNode?.appendChild(badge);
+      }
+    }
     elements.convictionValueText.textContent = `${conviction} (${data.riskManager?.weightedConvictionScore || 84}%)`;
     elements.actionBadgeBox.textContent = isZh ? `執行操作: ${action}` : `ACTION: ${action}`;
 
@@ -856,6 +872,53 @@ function renderFullAnalysis(data, ticker) {
   }
 
   state.currentAnalysis = { ticker, results: parsedResults, data };
+}
+
+// Deterministic price boundary validator: ensures StopLoss < EntryLow ≤ EntryHigh
+function validateAndFixExecutionLevels(execution, currentPrice, isZh) {
+  const parsePrice = (str) => {
+    if (!str) return null;
+    const match = String(str).match(/([0-9]+\.?[0-9]*)/);
+    return match ? parseFloat(match[1]) : null;
+  };
+
+  // Parse entry zone: handle both "$XXX" and "$XXX - $YYY" formats
+  const entryStr = execution.entryZone || '';
+  const entryParts = entryStr.split('-').map(s => parsePrice(s.trim())).filter(Boolean);
+  let entryLow = entryParts[0] || null;
+  let entryHigh = entryParts[1] || entryParts[0] || null;
+  let stopLoss = parsePrice(execution.stopLoss);
+
+  if (!entryLow && !stopLoss) {
+    // Nothing parseable, pass through unchanged
+    return { ...execution, wasCorrected: false };
+  }
+
+  let wasCorrected = false;
+  const currency = currentPrice && currentPrice > 0 ? '' : '';
+
+  // Enforce: entryLow ≤ entryHigh
+  if (entryLow && entryHigh && entryLow > entryHigh) {
+    [entryLow, entryHigh] = [entryHigh, entryLow];
+    wasCorrected = true;
+  }
+
+  // Enforce: stopLoss < entryLow
+  if (stopLoss && entryLow && stopLoss >= entryLow) {
+    stopLoss = parseFloat((entryLow * 0.92).toFixed(2));
+    wasCorrected = true;
+  }
+
+  const fmt = (n) => n ? `$${n.toFixed(2)}` : null;
+  const correctedZone = (entryLow && entryHigh)
+    ? (entryLow === entryHigh ? fmt(entryLow) : `${fmt(entryLow)} – ${fmt(entryHigh)}`)
+    : execution.entryZone;
+
+  return {
+    entryZone: correctedZone || execution.entryZone,
+    stopLoss: fmt(stopLoss) || execution.stopLoss,
+    wasCorrected
+  };
 }
 
 // Render Data Sources Provenance Badges (with optional live web links & engine indicator)
@@ -1146,6 +1209,7 @@ function renderMockupSageCard(item, isZh) {
       <div class="card-sage-info">
         <h4 class="card-sage-name" style="cursor: pointer;">${displayName}</h4>
         <span class="mockup-badge-pill badge-${signalLower}">${signalText}</span>
+        ${sage.isHistorical ? `<span class="simulation-badge" title="${isZh ? '歷史投資大師，將其公開年報、著作與哲學框架應用於當前市場數據的模擬性哲學估評—不代表其實際言論。' : 'Simulated analytical assessment applying this legend\'s published frameworks to current financial data — not a literal quotation.'}">&#x1F9EA; ${isZh ? '模擬哲學框架' : 'Simulated Framework'}</span>` : ''}
       </div>
       <button type="button" class="card-profile-action-btn" title="${isZh ? '查看大師檔案' : 'View Profile'}">
         ℹ️

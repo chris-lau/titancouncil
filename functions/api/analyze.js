@@ -47,38 +47,142 @@ function checkRateLimit(clientIp) {
 }
 
 
-// Fetch verified real-time stock quote from financial market feeds
-
-async function fetchLiveMarketQuote(rawTicker) {
+// Fetch verified real-time price + fundamental financial data from market feeds
+// Returns a comprehensive bundle of real-time and computed financial metrics
+async function fetchMarketDataBundle(rawTicker) {
   const cleanTicker = (rawTicker || '').replace(/^\$/, '').trim().toUpperCase();
+  const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
+
+  // Fetch price quote and fundamental data in parallel for performance
+  const [quoteRes, summaryRes] = await Promise.allSettled([
+    fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, { headers }),
+    fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail`, { headers })
+  ]);
+
+  let bundle = null;
+
   try {
-    const res = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const meta = data.chart?.result?.[0]?.meta;
-      if (meta && meta.regularMarketPrice) {
-        return {
+    // Parse real-time price quote
+    if (quoteRes.status === 'fulfilled' && quoteRes.value.ok) {
+      const qData = await quoteRes.value.json();
+      const meta = qData.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) {
+        bundle = {
           symbol: meta.symbol || cleanTicker,
           name: meta.longName || meta.shortName || cleanTicker,
           price: meta.regularMarketPrice,
           currency: meta.currency || 'USD',
           dayLow: meta.regularMarketDayLow || meta.regularMarketPrice,
           dayHigh: meta.regularMarketDayHigh || meta.regularMarketPrice,
-          fiftyTwoWeekLow: meta.fiftyTwoWeekLow || meta.regularMarketPrice * 0.8,
-          fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh || meta.regularMarketPrice * 1.2,
-          exchange: meta.fullExchangeName || meta.exchangeName || 'Market'
+          fiftyTwoWeekLow: meta.fiftyTwoWeekLow || null,
+          fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh || null,
+          exchange: meta.fullExchangeName || meta.exchangeName || 'Market',
+          // Fundamentals (filled in below if available)
+          marketCapB: null,
+          eps: null,
+          bookValuePerShare: null,
+          peRatio: null,
+          forwardPE: null,
+          pegRatio: null,
+          priceToBook: null,
+          roe: null,
+          roic: null,
+          grossMarginPct: null,
+          operatingMarginPct: null,
+          totalDebtB: null,
+          totalCashB: null,
+          fcfB: null,
+          ebitdaB: null,
+          revenueB: null,
+          revenueGrowthPct: null,
+          // Computed deterministic valuation metrics
+          grahamNumber: null,
+          fcfYieldPct: null,
+          evEbit: null,
+          debtToEquity: null,
         };
       }
     }
+
+    // Parse fundamental summary data
+    if (bundle && summaryRes.status === 'fulfilled' && summaryRes.value.ok) {
+      const sData = await summaryRes.value.json();
+      const ks = sData.quoteSummary?.result?.[0]?.defaultKeyStatistics || {};
+      const fd = sData.quoteSummary?.result?.[0]?.financialData || {};
+      const sd = sData.quoteSummary?.result?.[0]?.summaryDetail || {};
+
+      // Extract raw fundamental values (raw property from Yahoo Finance API)
+      const eps = ks.trailingEps?.raw || ks.forwardEps?.raw || null;
+      const bvps = ks.bookValue?.raw || null;
+      const marketCap = (sd.marketCap?.raw || ks.marketCap?.raw || null);
+      const marketCapB = marketCap ? marketCap / 1e9 : null;
+      const peRatio = sd.trailingPE?.raw || ks.forwardPE?.raw || null;
+      const forwardPE = ks.forwardPE?.raw || null;
+      const pegRatio = ks.pegRatio?.raw || null;
+      const priceToBook = ks.priceToBook?.raw || null;
+      const totalDebt = fd.totalDebt?.raw || null;
+      const totalCash = fd.totalCash?.raw || null;
+      const fcf = fd.freeCashflow?.raw || null;
+      const ebitda = fd.ebitda?.raw || null;
+      const revenue = fd.totalRevenue?.raw || null;
+      const revenueGrowth = fd.revenueGrowth?.raw || null;
+      const grossMargin = fd.grossMargins?.raw || null;
+      const operatingMargin = fd.operatingMargins?.raw || null;
+      const roe = fd.returnOnEquity?.raw || null;
+      const roic = fd.returnOnAssets?.raw || null; // Approximate; ROIC not directly in Yahoo
+
+      bundle.marketCapB = marketCapB;
+      bundle.eps = eps;
+      bundle.bookValuePerShare = bvps;
+      bundle.peRatio = peRatio;
+      bundle.forwardPE = forwardPE;
+      bundle.pegRatio = pegRatio;
+      bundle.priceToBook = priceToBook;
+      bundle.roe = roe ? (roe * 100) : null;
+      bundle.roic = roic ? (roic * 100) : null;
+      bundle.grossMarginPct = grossMargin ? (grossMargin * 100) : null;
+      bundle.operatingMarginPct = operatingMargin ? (operatingMargin * 100) : null;
+      bundle.totalDebtB = totalDebt ? (totalDebt / 1e9) : null;
+      bundle.totalCashB = totalCash ? (totalCash / 1e9) : null;
+      bundle.fcfB = fcf ? (fcf / 1e9) : null;
+      bundle.ebitdaB = ebitda ? (ebitda / 1e9) : null;
+      bundle.revenueB = revenue ? (revenue / 1e9) : null;
+      bundle.revenueGrowthPct = revenueGrowth ? (revenueGrowth * 100) : null;
+
+      // =========================================================
+      // DETERMINISTIC FINANCIAL FORMULA ENGINE (no LLM arithmetic)
+      // =========================================================
+
+      // Graham Number = sqrt(22.5 × EPS × Book Value Per Share)
+      if (eps > 0 && bvps > 0) {
+        bundle.grahamNumber = Math.sqrt(22.5 * eps * bvps).toFixed(2);
+      }
+
+      // FCF Yield = TTM FCF / Enterprise Value × 100
+      if (fcf && marketCap && totalDebt && totalCash) {
+        const enterpriseValue = marketCap + totalDebt - totalCash;
+        if (enterpriseValue > 0) {
+          bundle.fcfYieldPct = ((fcf / enterpriseValue) * 100).toFixed(2);
+          // EV/EBIT — approximate using EBITDA as proxy if EBIT not directly available
+          if (ebitda > 0) {
+            bundle.evEbit = (enterpriseValue / ebitda).toFixed(1);
+          }
+        }
+      }
+
+      // Debt/Equity ratio (from priceToBook and total debt approximate)
+      if (totalDebt && marketCap && bvps && eps) {
+        // Use total debt vs market cap as simple leverage indicator
+        bundle.debtToEquity = (totalDebt / marketCap).toFixed(2);
+      }
+    }
   } catch (e) {
-    // If live quote fetch fails, fallback to LLM search grounding
+    // Silently fall through; bundle will have whatever was parsed
   }
-  return null;
+
+  return bundle;
 }
+
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -131,23 +235,68 @@ export async function onRequestPost(context) {
 
     const isZh = language === 'zh' || language === 'zh-CN' || language === 'zh-TW';
 
-    // Fetch verified live market quote (Ground Truth)
-    const liveQuote = await fetchLiveMarketQuote(ticker);
+    // Fetch verified live market price + fundamental financial data (Ground Truth)
+    const liveData = await fetchMarketDataBundle(ticker);
+
+    // Helper to format a number or return fallback string
+    const fmt = (v, decimals = 2, suffix = '') => (v != null && !isNaN(v)) ? `${Number(v).toFixed(decimals)}${suffix}` : 'N/A (use web search)';
 
     const systemPrompt = `You are the TitanCouncil Coordinator.
 Conduct a rigorous multi-perspective stock deliberation on: "${ticker}".
-${liveQuote ? `
-VERIFIED REAL-TIME MARKET DATA (GROUND TRUTH - STRICT REQUIREMENT):
-- Security: ${liveQuote.name} (${liveQuote.symbol})
-- Exact Live Market Price: ${liveQuote.currency} $${liveQuote.price.toFixed(2)}
-- Today's Trading Range: $${liveQuote.dayLow.toFixed(2)} - $${liveQuote.dayHigh.toFixed(2)}
-- 52-Week Range: $${liveQuote.fiftyTwoWeekLow.toFixed(2)} - $${liveQuote.fiftyTwoWeekHigh.toFixed(2)}
-- Currency: ${liveQuote.currency}
-- Exchange: ${liveQuote.exchange}
+${liveData ? `
+================================================================================
+VERIFIED FINANCIAL DATA (GROUND TRUTH — DO NOT DEVIATE OR RE-ESTIMATE)
+Pre-fetched deterministically from live market APIs before this prompt.
+================================================================================
+Company: ${liveData.name} (${liveData.symbol})
+Exchange / Currency: ${liveData.exchange} / ${liveData.currency}
 
-MANDATORY: You MUST use the exact live stock price of ${liveQuote.currency} $${liveQuote.price.toFixed(2)} in your thinking and valuation deliberations (DCF, Margin of Safety, Entry Zone, Stop Loss). Set "livePrice": "${liveQuote.currency} $${liveQuote.price.toFixed(2)}" in the JSON output. DO NOT estimate or invent any other price.
+== PRICE & MARKET ==
+Live Price (exact): ${liveData.currency} $${liveData.price.toFixed(2)}
+Today's Range: $${liveData.dayLow?.toFixed(2)} – $${liveData.dayHigh?.toFixed(2)}
+52-Week Range: ${liveData.fiftyTwoWeekLow ? `$${liveData.fiftyTwoWeekLow.toFixed(2)}` : 'N/A'} – ${liveData.fiftyTwoWeekHigh ? `$${liveData.fiftyTwoWeekHigh.toFixed(2)}` : 'N/A'}
+Market Cap: ${liveData.marketCapB ? `$${liveData.marketCapB.toFixed(1)}B` : 'N/A'}
+
+== INCOME & GROWTH ==
+TTM Revenue: ${liveData.revenueB ? `$${liveData.revenueB.toFixed(2)}B` : 'N/A'}
+Revenue Growth (YoY): ${fmt(liveData.revenueGrowthPct, 1, '%')}
+Gross Margin: ${fmt(liveData.grossMarginPct, 1, '%')}
+Operating Margin: ${fmt(liveData.operatingMarginPct, 1, '%')}
+TTM FCF: ${liveData.fcfB ? `$${liveData.fcfB.toFixed(2)}B` : 'N/A'}
+EBITDA: ${liveData.ebitdaB ? `$${liveData.ebitdaB.toFixed(2)}B` : 'N/A'}
+
+== VALUATION MULTIPLES ==
+P/E Ratio (TTM): ${fmt(liveData.peRatio, 1, 'x')}
+Forward P/E: ${fmt(liveData.forwardPE, 1, 'x')}
+PEG Ratio: ${fmt(liveData.pegRatio, 2)}
+Price/Book: ${fmt(liveData.priceToBook, 2, 'x')}
+EPS (TTM): ${fmt(liveData.eps)}
+Book Value/Share: ${fmt(liveData.bookValuePerShare)}
+
+== BALANCE SHEET ==
+Total Cash: ${liveData.totalCashB ? `$${liveData.totalCashB.toFixed(2)}B` : 'N/A'}
+Total Debt: ${liveData.totalDebtB ? `$${liveData.totalDebtB.toFixed(2)}B` : 'N/A'}
+Debt/Equity: ${fmt(liveData.debtToEquity)}
+
+== RETURNS ==
+ROE: ${fmt(liveData.roe, 1, '%')}
+ROA (Proxy for ROIC): ${fmt(liveData.roic, 1, '%')}
+
+== DETERMINISTIC COMPUTED METRICS (calculated in code — not LLM estimates) ==
+Graham Number: ${liveData.grahamNumber ? `$${liveData.grahamNumber}` : 'N/A (negative EPS or BVPS)'}
+FCF Yield (EV basis): ${fmt(liveData.fcfYieldPct, 2, '%')}
+EV/EBITDA: ${fmt(liveData.evEbit, 1, 'x')}
+
+================================================================================
+MANDATORY REQUIREMENTS:
+1. Set "livePrice": "${liveData.currency} $${liveData.price.toFixed(2)}" in your JSON output.
+2. You MUST use the exact price of ${liveData.currency} $${liveData.price.toFixed(2)} for all valuation calculations (Entry Zone, Stop Loss, DCF, Margin of Safety). DO NOT invent or estimate a different price.
+3. For each Titan, cite specific figures from the GROUND TRUTH table above in their sourceDataSnippet.
+4. HISTORICAL/DECEASED PERSONA GUARDRAIL — For Benjamin Graham (deceased 1976), Charlie Munger (deceased 2023), and Rakesh Jhunjhunwala (deceased 2022): Generate a SIMULATED analytical assessment applying their documented, published investment philosophies and frameworks to the current financial data above. Do NOT present synthetic text as literal historical statements. Prefix their "quote" field with: "Applying [Name]'s framework:"
+================================================================================
 ` : `
 Use live market knowledge to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
+HISTORICAL/DECEASED PERSONA GUARDRAIL — For Benjamin Graham, Charlie Munger, and Rakesh Jhunjhunwala: Generate a simulated analytical assessment applying their published frameworks. Prefix their quote with "Applying [Name]'s framework:".
 `}
 
 
