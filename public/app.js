@@ -397,6 +397,7 @@ function renderFullAnalysis(data, ticker) {
       sage: sageObj,
       signal: (v.signal || 'NEUTRAL').toUpperCase(),
       confidence: v.confidence || 75,
+      provenance: v.provenance || (ticker.endsWith('.TO') ? '🍁 SEDAR+ (TSX) & Live Search' : '📑 SEC 10-K & Web Grounding'),
       quote: v.quote || v.reasoning || '',
       chainOfThought: v.chainOfThought || [
         `1. Framework: Evaluated ${ticker} according to core investment parameters.`,
@@ -409,8 +410,8 @@ function renderFullAnalysis(data, ticker) {
     renderMockupSageCard(item, isZh);
   });
 
-  // Render Data Sources & Citations
-  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited);
+  // Render Data Sources & Citations (including live Google Search web links)
+  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks);
 
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
@@ -431,14 +432,30 @@ function renderFullAnalysis(data, ticker) {
   state.currentAnalysis = { ticker, results: parsedResults, data };
 }
 
-// Render Data Sources Provenance Badges
-function renderSourcesBadges(customSources) {
+// Render Data Sources Provenance Badges (with optional live web links)
+function renderSourcesBadges(customSources, webLinks) {
   if (!elements.sourcesPillsContainer) return;
   elements.sourcesPillsContainer.innerHTML = '';
 
+  // Render clickable live web citations from Google Search Grounding if available
+  if (webLinks && webLinks.length > 0) {
+    webLinks.forEach(link => {
+      const a = document.createElement('a');
+      a.className = 'source-link-pill';
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = `${link.title} (${link.url})`;
+      const shortTitle = link.title.length > 22 ? `${link.title.substring(0, 22)}…` : link.title;
+      a.innerHTML = `🌐 ${shortTitle} ↗`;
+      elements.sourcesPillsContainer.appendChild(a);
+    });
+  }
+
   const defaultSources = [
-    '📑 SEC 10-K / 10-Q Filings',
-    '🍁 SEDAR+ (TSX Disclosure)',
+    '📑 SEC 10-K / 10-Q (EDGAR)',
+    '🍁 SEDAR+ (Canadian TSE)',
+    '🔍 Google Live Search Grounding',
     '✨ Google Gemini API',
     '🏛️ 13 Titan Frameworks'
   ];
@@ -469,9 +486,13 @@ async function runSimulatedDeliberation(ticker, selectedSages, financials, compa
   elements.sageCardsGrid.innerHTML = '';
   const results = [];
 
+  const defaultProv = isCanadian 
+    ? (isZh ? '🍁 SEDAR+ (TSX 官方揭露)' : '🍁 SEDAR+ (TSX Disclosure)')
+    : (isZh ? '📑 SEC 10-K & 即時搜尋檢索' : '📑 SEC 10-K & Web Grounding');
+
   for (const sage of selectedSages) {
     const { signal, confidence, quote, chainOfThought } = generateSageVerdictWithCoT(sage.id, flags, isZh);
-    const item = { sage, signal, confidence, quote, chainOfThought };
+    const item = { sage, signal, confidence, quote, chainOfThought, provenance: defaultProv };
     results.push(item);
     renderMockupSageCard(item, isZh);
   }
@@ -902,6 +923,11 @@ function renderMockupSageCard(item, isZh) {
     </div>
 
     <p class="card-quote-text">"${quote}"</p>
+
+    <div class="card-provenance-tag">
+      <span>📌</span>
+      <span>${item.provenance || (isZh ? 'SEC 10-K & 即時搜尋檢索' : 'SEC 10-K & Web Grounding')}</span>
+    </div>
 
     <div class="card-cot-section">
       <button type="button" class="cot-toggle-btn">
