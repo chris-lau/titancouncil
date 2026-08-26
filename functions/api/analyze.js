@@ -191,7 +191,7 @@ Respond ONLY in valid JSON matching this schema:
       });
     }
 
-    // Primary model is Gemini 3.7 Flash; fallback to 2.5/2.0 only if Google 3.7 servers are 503 overloaded
+    // Models to try in priority order
     const MODELS_TO_TRY = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     let geminiData = null;
     let successfulModel = 'gemini-3.7-flash';
@@ -200,76 +200,73 @@ Respond ONLY in valid JSON matching this schema:
     for (const model of MODELS_TO_TRY) {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
-      // Try with search tool first, then JSON schema, with automatic retry on 503/429
-      for (let attempt = 0; attempt < 2; attempt++) {
-        if (attempt > 0) {
-          await new Promise(r => setTimeout(r, 1200)); // 1.2s backoff on 503 spike
-        }
-
-        try {
-          // 1. Try with Google Search Grounding Tool
-          let res = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
-                  ]
-                }
-              ],
-              tools: [
-                { googleSearch: {} }
-              ]
-            })
-          });
-
-          if (res.ok) {
-            geminiData = await res.json();
-            successfulModel = model;
-            break;
-          }
-
-          // 2. Fallback: Pure JSON generation without search tool
-          res = await fetch(geminiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: "user",
-                  parts: [
-                    { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
-                  ]
-                }
-              ],
-              generationConfig: {
-                responseMimeType: "application/json",
-                temperature: 0.7
+      try {
+        // 1. Try with Google Search Grounding Tool
+        let res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
+                ]
               }
-            })
-          });
+            ],
+            tools: [
+              { googleSearch: {} }
+            ]
+          })
+        });
 
-          if (res.ok) {
-            geminiData = await res.json();
-            successfulModel = model;
-            break;
-          }
-
-          lastErrorMsg = await res.text();
-        } catch (e) {
-          lastErrorMsg = e.message;
+        if (res.ok) {
+          geminiData = await res.json();
+          successfulModel = model;
+          break;
         }
-      }
 
-      if (geminiData) break;
+        // 2. Fallback: Pure JSON generation without search tool
+        res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.7
+            }
+          })
+        });
+
+        if (res.ok) {
+          geminiData = await res.json();
+          successfulModel = model;
+          break;
+        }
+
+        lastErrorMsg = await res.text();
+      } catch (e) {
+        lastErrorMsg = e.message;
+      }
     }
 
     if (!geminiData) {
-      throw new Error(`Gemini API high-demand capacity error: ${lastErrorMsg || 'Please retry in a moment.'}`);
+      return new Response(JSON.stringify({ 
+        error: `Gemini server busy or high demand: ${lastErrorMsg || 'Please retry in a moment.'}` 
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
+
 
 
 

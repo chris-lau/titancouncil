@@ -475,7 +475,7 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行即時思維鏈研判...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...';
   elements.progressBarFill.style.width = '60%';
 
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 2; // Strict bound: Maximum 2 attempts total (1 initial + 1 retry)
   let lastError = null;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -484,9 +484,10 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
     if (attempt > 1) {
       if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.remove('hidden');
       elements.statusMessage.textContent = isZh 
-        ? `⏳ Gemini 伺服器繁忙（高負載），正在自動重試 (第 ${attempt}/${MAX_RETRIES} 次)...` 
-        : `⏳ Gemini is busy (high demand). Retrying deliberation (Attempt ${attempt}/${MAX_RETRIES})...`;
-      elements.progressBarFill.style.width = `${40 + attempt * 18}%`;
+        ? `⏳ Gemini 伺服器忙碌中（高負載），正在最後重試 (第 ${attempt}/${MAX_RETRIES} 次)...` 
+        : `⏳ Gemini is busy (high demand). Retrying once more (Attempt ${attempt}/${MAX_RETRIES})...`;
+      elements.progressBarFill.style.width = '75%';
+
 
       // Wait 2.2s before retry with abort awareness
       await new Promise((resolve) => {
