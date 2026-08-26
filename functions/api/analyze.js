@@ -191,14 +191,27 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution (DeepSeek-R1 / DeepSeek-V3)
+    // 1. DeepSeek Engine Execution (V4-Flash / R1-Reasoner / V3-Chat)
     // ==========================================
     async function executeDeepSeek() {
 
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured in Cloudflare Environment Variables.');
       
       const candidateConfigs = [
-        // 1. DeepSeek Reasoner (R1 Thinking Model: no response_format / temperature per API spec)
+        // 1. DeepSeek V4 Flash (if enabled on endpoint)
+        {
+          model: 'deepseek-v4-flash',
+          body: {
+            model: 'deepseek-v4-flash',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
+            ],
+            response_format: { type: 'json_object' },
+            max_tokens: 4096
+          }
+        },
+        // 2. DeepSeek Reasoner (R1 Thinking Model: no response_format / temperature per API spec)
         {
           model: 'deepseek-reasoner',
           body: {
@@ -210,7 +223,7 @@ Respond ONLY in valid JSON matching this schema:
             max_tokens: 8192
           }
         },
-        // 2. DeepSeek Chat (V3 Standard: supports json_object and temperature)
+        // 3. DeepSeek Chat (V3 Standard: supports json_object and temperature)
         {
           model: 'deepseek-chat',
           body: {
@@ -225,6 +238,7 @@ Respond ONLY in valid JSON matching this schema:
           }
         }
       ];
+
 
       let lastDeepSeekError = '';
 
