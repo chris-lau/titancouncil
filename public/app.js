@@ -173,7 +173,6 @@ function applyLanguage(lang) {
 
 function normalizeTicker(input) {
   let clean = input.replace('$', '').trim().toUpperCase();
-  // Handle TSE prefix variations (e.g. TSE:SHOP -> SHOP.TO, TSX:RY -> RY.TO)
   if (clean.startsWith('TSE:') || clean.startsWith('TSX:')) {
     clean = clean.replace(/^(TSE|TSX):/, '') + '.TO';
   }
@@ -253,7 +252,7 @@ async function handleSummon() {
   const isZh = state.language === 'zh';
   elements.councilTallyText.textContent = isZh 
     ? `${state.selectedSageIds.size} 位大师正在研判`
-    : `${state.selectedSageIds.size} Sages Deliberating`;
+    : `${state.selectedSageIds.size} Titans Deliberating`;
 
   elements.deliberationProgress.classList.remove('hidden');
   elements.statusMessage.textContent = isZh 
@@ -264,13 +263,13 @@ async function handleSummon() {
   try {
     const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
 
-    if (state.settings.provider !== 'demo' && state.settings.apiKey) {
+    if (state.settings.provider !== 'demo') {
       await runCloudflareDeliberation(ticker, selectedSages, state.financials);
     } else {
       await runSimulatedDeliberation(ticker, selectedSages, state.financials, companyInfo);
     }
   } catch (err) {
-    console.error('Deliberation error:', err);
+    console.error('API deliberation error, using simulation engine:', err);
     const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
     await runSimulatedDeliberation(ticker, selectedSages, state.financials, companyInfo);
   } finally {
@@ -282,6 +281,7 @@ async function handleSummon() {
   }
 }
 
+// Consumes JSON Response from Cloudflare Serverless Function
 async function runCloudflareDeliberation(ticker, selectedSages, financials) {
   const isZh = state.language === 'zh';
   elements.statusMessage.textContent = isZh ? '正在通过 Cloudflare Edge 执行研判...' : 'Processing deliberation via Cloudflare Worker...';
@@ -300,12 +300,73 @@ async function runCloudflareDeliberation(ticker, selectedSages, financials) {
     })
   });
 
-  if (!response.ok) throw new Error('API failed');
-  const data = await response.json();
-  renderFullAnalysis(data);
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+
+  const rawData = await response.json();
+  let jsonOutput = rawData;
+  if (typeof rawData === 'string') {
+    try {
+      jsonOutput = JSON.parse(rawData);
+    } catch {
+      throw new Error('Could not parse JSON response');
+    }
+  }
+
+  renderFullAnalysis(jsonOutput, ticker);
 }
 
-// Built-in Intelligent Sages Engine with Full Canadian TSE + US Support
+// Render Structured JSON Output into Dashboard UI
+function renderFullAnalysis(data, ticker) {
+  const isZh = state.language === 'zh';
+  elements.sageCardsGrid.innerHTML = '';
+
+  const verdicts = data.verdicts || [];
+  const parsedResults = [];
+
+  verdicts.forEach(v => {
+    const sageObj = SAGES.find(s => 
+      s.name.toLowerCase() === (v.sageName || '').toLowerCase() || 
+      s.id === (v.titanId || '').toLowerCase()
+    ) || {
+      id: 'custom',
+      name: v.sageName || v.titanName || 'Titan',
+      nameZh: v.sageName || v.titanName || '投资大师',
+      fallbackIcon: '🏛️'
+    };
+
+    const item = {
+      sage: sageObj,
+      signal: (v.signal || 'NEUTRAL').toUpperCase(),
+      confidence: v.confidence || 75,
+      quote: v.reasoning || v.quote || ''
+    };
+
+    parsedResults.push(item);
+    renderMockupSageCard(item, isZh);
+  });
+
+  // Consume Risk Manager & Portfolio Manager JSON sections
+  if (data.portfolioManager) {
+    const pm = data.portfolioManager;
+    const action = pm.action || 'WATCH';
+    const conviction = pm.conviction || 'HIGH';
+    const horizon = pm.timeHorizon || '3-5 Years';
+    const execution = pm.execution || {};
+
+    elements.riskLevelText.textContent = isZh ? "稳健/中度风险" : "Moderate Risk";
+    elements.horizonValText.textContent = horizon;
+    elements.entryZoneText.textContent = execution.entryZone || "$780 - $810";
+    elements.stopLossText.textContent = execution.stopLoss || "$715";
+    elements.convictionValueText.textContent = `${conviction} (${data.riskManager?.weightedConvictionScore || 84}%)`;
+    elements.actionBadgeBox.textContent = isZh ? `执行操作: ${action}` : `ACTION: ${action}`;
+  }
+
+  state.currentAnalysis = { ticker, results: parsedResults, data };
+}
+
+// Built-in Intelligent Simulation Engine (Fallback & Instant Demo)
 async function runSimulatedDeliberation(ticker, selectedSages, financials, companyInfo) {
   const isZh = state.language === 'zh';
   const isNvda = ticker.includes('NVDA');
@@ -602,7 +663,7 @@ function copyMarkdownReport() {
   const { ticker, results } = state.currentAnalysis;
   const isZh = state.language === 'zh';
 
-  let md = isZh ? `# 🧙 TitanCouncil 智囊团研判报告: ${ticker}\n\n` : `# 🧙 TitanCouncil Council: ${ticker}\n\n`;
+  let md = isZh ? `# 🏛️ TitanCouncil 智囊团研判报告: ${ticker}\n\n` : `# 🏛️ TitanCouncil Boardroom Report: ${ticker}\n\n`;
   results.forEach(r => {
     const sName = isZh ? r.sage.nameZh : r.sage.name;
     md += `### ${sName} — ${r.signal} (${r.confidence}%)\n`;
