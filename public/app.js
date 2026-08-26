@@ -77,9 +77,10 @@ function init() {
   attachEventListeners();
   buildProfileQuickSwitcher();
   applyLanguage(state.language);
-  // Auto-run initial deliberation for $NVDA
-  handleSummon();
+  // Instant Initial Render: 0ms mobile first paint with interactive welcome state
+  renderWelcomeState();
 }
+
 
 function attachEventListeners() {
   // Summon Button & Enter Key
@@ -311,7 +312,6 @@ async function handleSummon() {
   state.isAnalyzing = true;
 
   elements.headerCompanyName.textContent = `${companyInfo.name} (${companyInfo.currency})`;
-  elements.sageCardsGrid.innerHTML = '';
   
   const isZh = state.language === 'zh';
   elements.councilTallyText.textContent = isZh 
@@ -323,8 +323,11 @@ async function handleSummon() {
     : `Summoning ${state.selectedSageIds.size} council members for ${ticker}...`;
   elements.progressBarFill.style.width = '25%';
 
+  const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
+  // Render instant mobile skeleton cards while Gemini processes
+  renderSkeletonCards(selectedSages);
+
   try {
-    const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
     await runGeminiDeliberation(ticker, selectedSages, state.financials);
   } catch (err) {
     console.error('Google Gemini Deliberation Error:', err);
@@ -337,6 +340,74 @@ async function handleSummon() {
     }, 400);
   }
 }
+
+// Render Instant Interactive Welcome Hero (0ms initial load time)
+function renderWelcomeState() {
+  const isZh = state.language === 'zh';
+  elements.sageCardsGrid.innerHTML = '';
+
+  const welcomeCard = document.createElement('div');
+  welcomeCard.className = 'welcome-board-card';
+  welcomeCard.innerHTML = `
+    <div class="welcome-hero-badge">
+      <span>🏛️</span>
+      <span>${isZh ? '13位傳奇投資巨頭已就緒' : '13 Legendary Titans Ready'}</span>
+    </div>
+    <h2 class="welcome-hero-title">
+      ${isZh ? '歡迎來到 TitanCouncil 智慧投資董事會' : 'Welcome to TitanCouncil Boardroom'}
+    </h2>
+    <p class="welcome-hero-desc">
+      ${isZh 
+        ? '輸入美股或加股代碼（例如 $NVDA、SHOP.TO、RY.TO），召集巴菲特、蒙格、柏里等 13 位傳奇大師，透過 Google Gemini 執行即時思維鏈（CoT）深度審議。'
+        : 'Enter any US or Canadian TSE ticker ($NVDA, SHOP.TO, RY.TO) to summon Buffett, Munger, Burry, Wood and 9 more Titans for real-time Chain of Thought deliberation.'}
+    </p>
+    <div class="welcome-quick-actions">
+      <button type="button" class="welcome-cta-btn" id="welcomeSummonBtn">
+        <span>🏛️</span>
+        <span>${isZh ? '立即召集智囊團分析 $NVDA' : 'Summon Council for $NVDA'}</span>
+      </button>
+      <button type="button" class="welcome-preset-btn" data-ticker="SHOP.TO">🍁 $SHOP.TO</button>
+      <button type="button" class="welcome-preset-btn" data-ticker="RY.TO">🍁 $RY.TO</button>
+      <button type="button" class="welcome-preset-btn" data-ticker="AAPL">🍎 $AAPL</button>
+    </div>
+  `;
+
+  const summonCta = welcomeCard.querySelector('#welcomeSummonBtn');
+  if (summonCta) summonCta.addEventListener('click', () => handleSummon());
+
+  welcomeCard.querySelectorAll('.welcome-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      elements.tickerInput.value = btn.dataset.ticker;
+      elements.headerCompanyName.textContent = getCompanyDetails(btn.dataset.ticker).name;
+      handleSummon();
+    });
+  });
+
+  elements.sageCardsGrid.appendChild(welcomeCard);
+}
+
+// Render Instant Skeleton Placeholders during AI Deliberation
+function renderSkeletonCards(selectedSages) {
+  elements.sageCardsGrid.innerHTML = '';
+  selectedSages.forEach(sage => {
+    const skel = document.createElement('div');
+    skel.className = 'card-skeleton';
+    skel.innerHTML = `
+      <div class="skeleton-shimmer"></div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <div style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">${sage.fallbackIcon}</div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 0.35rem;">
+          <div class="skeleton-line skeleton-line-title"></div>
+          <div class="skeleton-line skeleton-line-badge"></div>
+        </div>
+      </div>
+      <div class="skeleton-line skeleton-line-text"></div>
+      <div class="skeleton-line skeleton-line-box"></div>
+    `;
+    elements.sageCardsGrid.appendChild(skel);
+  });
+}
+
 
 // Deliberation via Google Gemini API through Cloudflare Pages Function
 async function runGeminiDeliberation(ticker, selectedSages, financials) {
