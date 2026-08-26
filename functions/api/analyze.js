@@ -191,60 +191,86 @@ Respond ONLY in valid JSON matching this schema:
       });
     }
 
-    const MODEL_NAME = 'gemini-3.7-flash';
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${geminiKey}`;
-
+    // Primary model is Gemini 3.7 Flash; fallback to 2.5/2.0 only if Google 3.7 servers are 503 overloaded
+    const MODELS_TO_TRY = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
     let geminiData = null;
+    let successfulModel = 'gemini-3.7-flash';
+    let lastErrorMsg = '';
 
-    // 1. Try with Google Search Grounding Tool
-    let res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
-            ]
-          }
-        ],
-        tools: [
-          { googleSearch: {} }
-        ]
-      })
-    });
+    for (const model of MODELS_TO_TRY) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
-    if (res.ok) {
-      geminiData = await res.json();
-    } else {
-      // 2. Fallback: Pure JSON Generation without search tool
-      res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+      // Try with search tool first, then JSON schema, with automatic retry on 503/429
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, 1200)); // 1.2s backoff on 503 spike
+        }
+
+        try {
+          // 1. Try with Google Search Grounding Tool
+          let res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
+                  ]
+                }
+              ],
+              tools: [
+                { googleSearch: {} }
               ]
-            }
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.7
-          }
-        })
-      });
+            })
+          });
 
-      if (res.ok) {
-        geminiData = await res.json();
-      } else {
-        const errText = await res.text();
-        throw new Error(`Gemini 3.7 Flash API error [${res.status}]: ${errText}`);
+          if (res.ok) {
+            geminiData = await res.json();
+            successfulModel = model;
+            break;
+          }
+
+          // 2. Fallback: Pure JSON generation without search tool
+          res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+                  ]
+                }
+              ],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.7
+              }
+            })
+          });
+
+          if (res.ok) {
+            geminiData = await res.json();
+            successfulModel = model;
+            break;
+          }
+
+          lastErrorMsg = await res.text();
+        } catch (e) {
+          lastErrorMsg = e.message;
+        }
       }
+
+      if (geminiData) break;
     }
+
+    if (!geminiData) {
+      throw new Error(`Gemini API high-demand capacity error: ${lastErrorMsg || 'Please retry in a moment.'}`);
+    }
+
 
 
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
@@ -265,9 +291,10 @@ Respond ONLY in valid JSON matching this schema:
       }
     }
 
-    // Mark that this response was generated live by Google Gemini 3.7 Flash
+    // Mark that this response was generated live by Google Gemini
     parsedJson.isLiveGemini = true;
-    parsedJson.modelUsed = MODEL_NAME;
+    parsedJson.modelUsed = successfulModel;
+
 
 
 
