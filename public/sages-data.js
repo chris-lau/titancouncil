@@ -341,7 +341,14 @@ export const I18N = {
     copyMarkdown: "📋 Copy Markdown",
     printPdf: "🖨️ Print / PDF",
     disclaimer: "⚠️ Educational purposes only. Not financial advice.",
-    directoryBtnTitle: "Titans Directory & Profiles"
+    copyCoT: "📋 Copy",
+    copiedCoT: "✅ Copied!",
+    copyThoughts: "📋 Copy Thoughts",
+    copiedThoughts: "✅ Copied!",
+    expandAllCoT: "🧠 Expand All CoT",
+    collapseAllCoT: "▲ Collapse All CoT",
+    kbdSearchHint: "Press / to search",
+    quickSuggestions: "Popular Tickers"
   },
   zh: {
     brandSubtitle: "頂尖大師投資決策智囊團（由 Google Gemini 驅動）",
@@ -356,7 +363,6 @@ export const I18N = {
     customInstructions: "📝 補充指示與考量條件",
     instructionsPlaceholder: "選填：輸入特定情境假設或考量重點（例如：「假設海外營收徵收 25% 關稅」、「以 5 年退休金高股息安全為考量重點」、「評估雲端成長放緩至 10% 之衝擊」）...",
     deliberatingText: "{n} 位大師正在研判",
-
     verdictCardsTitle: "投資巨頭獨立研判裁決與思維鏈 (CoT)",
     viewProfile: "ℹ️ 大師檔案",
     chainOfThought: "🧠 深入思維鏈 (CoT)",
@@ -374,9 +380,16 @@ export const I18N = {
     convictionScore: "綜合確信度",
     sourcesTitle: "📚 數據來源與引註",
     copyMarkdown: "📋 複製 Markdown",
-
     printPdf: "🖨️ 匯出 PDF",
     disclaimer: "⚠️ 僅供研究與教育使用，不構成任何投資建議。",
-    directoryBtnTitle: "13 位投資巨頭檔案庫"
+    directoryBtnTitle: "13 位投資巨頭檔案庫",
+    copyCoT: "📋 複製",
+    copiedCoT: "✅ 已複製!",
+    copyThoughts: "📋 複製思考",
+    copiedThoughts: "✅ 已複製!",
+    expandAllCoT: "🧠 展開全部思維鏈",
+    collapseAllCoT: "▲ 收起全部思維鏈",
+    kbdSearchHint: "按 / 快速搜尋",
+    quickSuggestions: "熱門標的"
   }
 };

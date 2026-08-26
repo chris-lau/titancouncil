@@ -30,19 +30,24 @@
 
       <!-- Integrated Search Capsule -->
       <div class="header-search-capsule">
-        <div class="capsule-search-group">
+        <div class="capsule-search-group" id="capsuleSearchGroup">
           <span class="search-lens-icon">🔍</span>
           <div class="search-text-fields">
-            <input 
-              type="text" 
-              id="tickerInput" 
-              value="$NVDA"
-              placeholder="Ticker ($NVDA, SHOP.TO, RY.TO, NVDA --value)..." 
-              autocomplete="off"
-              spellcheck="false"
-              aria-label="Stock ticker"
-            >
+            <div class="search-input-wrap">
+              <input 
+                type="text" 
+                id="tickerInput" 
+                value="$NVDA"
+                placeholder="Ticker ($NVDA, SHOP.TO, RY.TO, NVDA --value)..." 
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Stock ticker"
+              >
+              <span class="kbd-search-shortcut" id="kbdSearchHint" title="Press / to focus">/</span>
+            </div>
             <span class="company-name-tag" id="headerCompanyName">NVIDIA Corporation</span>
+            <!-- Live Ticker Autocomplete Dropdown -->
+            <div class="ticker-autocomplete-dropdown hidden" id="tickerAutocomplete"></div>
           </div>
           <button id="summonBtn" class="summon-capsule-btn">
             <span class="btn-avatar-icon">🏛️</span>
@@ -135,7 +140,12 @@
       <section class="sages-column">
         <div class="column-header">
           <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Titan Verdict Cards & Chain of Thought</h2>
-          <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
+          <div class="column-header-actions">
+            <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
+            <button type="button" class="cot-batch-toggle-btn hidden" id="cotBatchToggleBtn" title="Expand or Collapse All Chains of Thought">
+              <span id="cotBatchToggleText">🧠 Expand All CoT</span>
+            </button>
+          </div>
         </div>
 
         <!-- Deliberation Progress Bar & Cancel Button -->
@@ -406,6 +416,18 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Mobile Sticky Portfolio Summary Bar (Appears on mobile when scrolled past header) -->
+  <div class="mobile-sticky-pm-bar hidden" id="mobileStickyPmBar">
+    <div class="mobile-sticky-info">
+      <span class="mobile-sticky-ticker" id="mobileStickyTicker">$NVDA</span>
+      <span class="mobile-sticky-action" id="mobileStickyAction">ACCUMULATE ON DIPS</span>
+      <span class="mobile-sticky-conviction" id="mobileStickyConviction">84%</span>
+    </div>
+    <button type="button" class="mobile-sticky-jump-btn" id="mobileStickyJumpBtn">
+      <span>📊 總監決策</span>
+    </button>
   </div>
 
   <script type="module" src="app.js"></script>

@@ -61,6 +61,16 @@ const elements = {
   closeProfileBtn: document.getElementById('closeProfileBtn'),
   closeProfileFooterBtn: document.getElementById('closeProfileFooterBtn'),
   profileQuickSwitch: document.getElementById('profileQuickSwitch'),
+  // New Interactive UI Nodes
+  cotBatchToggleBtn: document.getElementById('cotBatchToggleBtn'),
+  cotBatchToggleText: document.getElementById('cotBatchToggleText'),
+  tickerAutocomplete: document.getElementById('tickerAutocomplete'),
+  kbdSearchHint: document.getElementById('kbdSearchHint'),
+  mobileStickyPmBar: document.getElementById('mobileStickyPmBar'),
+  mobileStickyTicker: document.getElementById('mobileStickyTicker'),
+  mobileStickyAction: document.getElementById('mobileStickyAction'),
+  mobileStickyConviction: document.getElementById('mobileStickyConviction'),
+  mobileStickyJumpBtn: document.getElementById('mobileStickyJumpBtn'),
   // I18N Text Nodes
   i18nSubtitle: document.getElementById('i18nSubtitle'),
   i18nSummonBtn: document.getElementById('i18nSummonBtn'),
@@ -74,7 +84,6 @@ const elements = {
   i18nVerdictCardsTitle: document.getElementById('i18nVerdictCardsTitle'),
   i18nPMTitle: document.getElementById('i18nPMTitle'),
   i18nPortfolioAlignment: document.getElementById('i18nPortfolioAlignment'),
-
   i18nHorizon: document.getElementById('i18nHorizon'),
   i18nTradeHorizon: document.getElementById('i18nTradeHorizon'),
   i18nEntryZone: document.getElementById('i18nEntryZone'),
@@ -87,9 +96,48 @@ const elements = {
 };
 
 
+// Safe Clipboard Copy Helper with Fallback
+function copyTextToClipboard(text) {
+  if (!text) return Promise.reject(new Error('Empty text'));
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        resolve();
+      } else {
+        reject(new Error('execCommand copy failed'));
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 // Initialize Application
 function init() {
   attachEventListeners();
+  initTickerAutocomplete();
+  initKeyboardShortcuts();
   buildProfileQuickSwitcher();
   applyLanguage(state.language);
   updateEngineUI();
@@ -217,6 +265,45 @@ function attachEventListeners() {
   // Report Export Buttons
   elements.copyReportBtn.addEventListener('click', copyMarkdownReport);
   elements.printReportBtn.addEventListener('click', () => window.print());
+
+  // Batch Expand / Collapse All Chains of Thought
+  if (elements.cotBatchToggleBtn) {
+    elements.cotBatchToggleBtn.addEventListener('click', () => {
+      state.allCotExpanded = !state.allCotExpanded;
+      const cotBoxes = elements.sageCardsGrid.querySelectorAll('.cot-steps-box');
+      const cotBtns = elements.sageCardsGrid.querySelectorAll('.cot-toggle-btn');
+      
+      cotBoxes.forEach(box => box.classList.toggle('hidden', !state.allCotExpanded));
+      cotBtns.forEach(btn => {
+        btn.classList.toggle('open', state.allCotExpanded);
+        const icon = btn.querySelector('.cot-toggle-icon');
+        if (icon) icon.textContent = state.allCotExpanded ? '▲' : '▼';
+      });
+
+      updateBatchCotButtonText();
+    });
+  }
+
+  // Mobile Sticky Bar scroll listener & jump action
+  window.addEventListener('scroll', () => {
+    if (!elements.mobileStickyPmBar) return;
+    const isMobile = window.innerWidth <= 900;
+    const hasAnalysis = Boolean(state.currentAnalysis?.data);
+    if (isMobile && hasAnalysis && window.scrollY > 300) {
+      elements.mobileStickyPmBar.classList.remove('hidden');
+    } else {
+      elements.mobileStickyPmBar.classList.add('hidden');
+    }
+  }, { passive: true });
+
+  if (elements.mobileStickyJumpBtn) {
+    elements.mobileStickyJumpBtn.addEventListener('click', () => {
+      const pmPanel = document.getElementById('pmVerdictPanel');
+      if (pmPanel) {
+        pmPanel.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
 }
 
 // Build one-click switcher inside Profile Modal
@@ -288,6 +375,159 @@ function applyLanguage(lang) {
   if (elements.i18nCopyMarkdown) elements.i18nCopyMarkdown.textContent = dict.copyMarkdown;
   if (elements.i18nPrintPdf) elements.i18nPrintPdf.textContent = dict.printPdf;
   if (elements.i18nDisclaimer) elements.i18nDisclaimer.textContent = dict.disclaimer;
+  
+  if (elements.kbdSearchHint) {
+    elements.kbdSearchHint.title = dict.kbdSearchHint || 'Press / to search';
+  }
+  updateBatchCotButtonText();
+}
+
+function updateBatchCotButtonText() {
+  if (!elements.cotBatchToggleText) return;
+  const dict = I18N[state.language] || I18N.en;
+  elements.cotBatchToggleText.textContent = state.allCotExpanded ? dict.collapseAllCoT : dict.expandAllCoT;
+}
+
+// 1. Ticker Autocomplete & Quick Search Dropdown
+function initTickerAutocomplete() {
+  if (!elements.tickerAutocomplete || !elements.tickerInput) return;
+
+  const allStocks = [];
+  Object.entries(GLOBAL_STOCKS).forEach(([sym, val]) => {
+    allStocks.push({ symbol: `$${sym}`, cleanSymbol: sym, name: val.name, sector: val.sector, isTse: false });
+  });
+  Object.entries(CANADIAN_TSE_STOCKS).forEach(([sym, val]) => {
+    allStocks.push({ symbol: `$${sym}`, cleanSymbol: sym, name: val.name, sector: val.sector, isTse: true });
+  });
+
+  let selectedIndex = -1;
+
+  const renderSuggestions = (query) => {
+    const cleanQ = query.replace(/^\$/, '').trim().toUpperCase();
+    if (!cleanQ) {
+      elements.tickerAutocomplete.classList.add('hidden');
+      elements.tickerAutocomplete.innerHTML = '';
+      selectedIndex = -1;
+      return;
+    }
+
+    const matches = allStocks.filter(s => 
+      s.cleanSymbol.includes(cleanQ) || 
+      s.name.toUpperCase().includes(cleanQ)
+    ).slice(0, 6);
+
+    if (matches.length === 0) {
+      elements.tickerAutocomplete.classList.add('hidden');
+      elements.tickerAutocomplete.innerHTML = '';
+      selectedIndex = -1;
+      return;
+    }
+
+    elements.tickerAutocomplete.innerHTML = matches.map((m, idx) => `
+      <div class="autocomplete-item ${idx === selectedIndex ? 'selected' : ''}" data-ticker="${m.cleanSymbol}">
+        <span class="autocomplete-symbol">
+          ${m.isTse ? '🍁 ' : ''}${m.symbol}
+        </span>
+        <span class="autocomplete-name">${m.name}</span>
+      </div>
+    `).join('');
+
+    elements.tickerAutocomplete.classList.remove('hidden');
+
+    elements.tickerAutocomplete.querySelectorAll('.autocomplete-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const t = item.dataset.ticker;
+        elements.tickerInput.value = `$${t}`;
+        elements.headerCompanyName.textContent = getCompanyDetails(t).name;
+        elements.tickerAutocomplete.classList.add('hidden');
+        handleSummon();
+      });
+    });
+  };
+
+  elements.tickerInput.addEventListener('input', (e) => {
+    selectedIndex = -1;
+    renderSuggestions(e.target.value);
+  });
+
+  elements.tickerInput.addEventListener('keydown', (e) => {
+    const items = elements.tickerAutocomplete.querySelectorAll('.autocomplete-item');
+    if (items.length === 0 || elements.tickerAutocomplete.classList.contains('hidden')) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectedIndex = (selectedIndex + 1) % items.length;
+      updateSelectedAutocomplete(items, selectedIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+      updateSelectedAutocomplete(items, selectedIndex);
+    } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < items.length) {
+      e.preventDefault();
+      const selectedItem = items[selectedIndex];
+      const t = selectedItem.dataset.ticker;
+      elements.tickerInput.value = `$${t}`;
+      elements.headerCompanyName.textContent = getCompanyDetails(t).name;
+      elements.tickerAutocomplete.classList.add('hidden');
+      handleSummon();
+    } else if (e.key === 'Escape') {
+      elements.tickerAutocomplete.classList.add('hidden');
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!elements.tickerAutocomplete.contains(e.target) && e.target !== elements.tickerInput) {
+      elements.tickerAutocomplete.classList.add('hidden');
+    }
+  });
+}
+
+function updateSelectedAutocomplete(items, index) {
+  items.forEach((it, i) => {
+    it.classList.toggle('selected', i === index);
+    if (i === index) it.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+// 2. Global Keyboard Shortcuts (/ to search, Esc to close modals, 1-5 for filters)
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    const activeEl = document.activeElement;
+    const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+    // '/' to quick-focus search bar
+    if (e.key === '/' && !isInputFocused) {
+      e.preventDefault();
+      if (elements.tickerInput) {
+        elements.tickerInput.focus();
+        elements.tickerInput.select();
+      }
+      return;
+    }
+
+    // Escape to close modals and autocomplete
+    if (e.key === 'Escape') {
+      if (elements.filterHelpModal && !elements.filterHelpModal.classList.contains('hidden')) {
+        elements.filterHelpModal.classList.add('hidden');
+      }
+      if (elements.sageProfileModal && !elements.sageProfileModal.classList.contains('hidden')) {
+        elements.sageProfileModal.classList.add('hidden');
+      }
+      if (elements.tickerAutocomplete && !elements.tickerAutocomplete.classList.contains('hidden')) {
+        elements.tickerAutocomplete.classList.add('hidden');
+      }
+      return;
+    }
+
+    // Number keys 1-5 when not typing to switch filter pills
+    if (!isInputFocused && ['1', '2', '3', '4', '5'].includes(e.key)) {
+      const filterMap = { '1': 'all', '2': 'value', '3': 'growth', '4': 'risk', '5': 'compare' };
+      const filterKey = filterMap[e.key];
+      if (filterKey) {
+        applyFilter(filterKey);
+      }
+    }
+  });
 }
 
 // Parses ticker and typed command flags
@@ -514,7 +754,10 @@ function renderSkeletonCards(selectedSages) {
     <div class="live-thinking-terminal-wrap">
       <div class="live-thinking-terminal-toolbar">
         <span>${isZh ? '💭 即時思維鏈串流 (Live Chain of Thought Stream)' : '💭 Live Chain of Thought Stream'}</span>
-        <span id="liveAutoScrollBtn" class="autoscroll-badge">${isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON'}</span>
+        <div class="live-terminal-actions">
+          <span id="liveCopyThinkingBtn" class="terminal-copy-badge" title="${isZh ? '複製即時思維鏈' : 'Copy Live Stream Thoughts'}">${isZh ? '📋 複製' : '📋 Copy'}</span>
+          <span id="liveAutoScrollBtn" class="autoscroll-badge">${isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON'}</span>
+        </div>
       </div>
       <div id="liveThinkingStreamBody" class="live-thinking-terminal-body">
         <span id="liveThinkingStreamText">${isZh ? '正在初始化 13 位傳奇巨頭思維模型並調取即時財務數據...' : 'Initializing 13 Titan framework models & grounding live market filings...'}</span><span class="live-thinking-cursor"></span>
@@ -522,6 +765,26 @@ function renderSkeletonCards(selectedSages) {
     </div>
   `;
   elements.sageCardsGrid.appendChild(liveBanner);
+
+  // Copy live stream thoughts handler
+  const liveCopyBtn = liveBanner.querySelector('#liveCopyThinkingBtn');
+  if (liveCopyBtn) {
+    liveCopyBtn.addEventListener('click', () => {
+      const streamTextEl = liveBanner.querySelector('#liveThinkingStreamText');
+      const textToCopy = streamTextEl ? streamTextEl.textContent : '';
+      if (!textToCopy) return;
+      copyTextToClipboard(textToCopy).then(() => {
+        liveCopyBtn.classList.add('copied');
+        liveCopyBtn.textContent = isZh ? '✅ 已複製!' : '✅ Copied!';
+        setTimeout(() => {
+          liveCopyBtn.classList.remove('copied');
+          liveCopyBtn.textContent = isZh ? '📋 複製' : '📋 Copy';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy live stream thoughts:', err);
+      });
+    });
+  }
 
   // Auto-scroll listener & user pause handling
   const streamBody = liveBanner.querySelector('#liveThinkingStreamBody');
@@ -775,10 +1038,16 @@ function renderFullAnalysis(data, ticker) {
         <span class="thinking-title-text">${isZh ? 'LLM 深度思考與推理歷程' : 'LLM Deep Thinking & Reasoning Log'}</span>
         <span class="thinking-badge" title="Active Model ID">Model: ${activeModelId}</span>
       </div>
-      <button type="button" class="thinking-toggle-btn">
-        <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
-        <span class="thinking-toggle-arrow">▼</span>
-      </button>
+      <div class="thinking-actions">
+        <button type="button" class="thinking-copy-btn" title="${isZh ? '複製思考過程' : 'Copy Thinking Process'}">
+          <span class="thinking-copy-icon">📋</span>
+          <span class="thinking-copy-label">${isZh ? '複製思考' : 'Copy Thoughts'}</span>
+        </button>
+        <button type="button" class="thinking-toggle-btn">
+          <span class="thinking-toggle-label">${isZh ? '展開思考過程' : 'Expand Thoughts'}</span>
+          <span class="thinking-toggle-arrow">▼</span>
+        </button>
+      </div>
     </div>
     <div class="llm-thinking-body hidden">
       <pre class="llm-thinking-text"></pre>
@@ -787,6 +1056,26 @@ function renderFullAnalysis(data, ticker) {
 
   const textEl = thinkingCard.querySelector('.llm-thinking-text');
   if (textEl) textEl.textContent = thoughtsText;
+
+  const copyThoughtsBtn = thinkingCard.querySelector('.thinking-copy-btn');
+  const copyThoughtsLabel = thinkingCard.querySelector('.thinking-copy-label');
+  const copyThoughtsIcon = thinkingCard.querySelector('.thinking-copy-icon');
+  if (copyThoughtsBtn) {
+    copyThoughtsBtn.addEventListener('click', () => {
+      copyTextToClipboard(thoughtsText).then(() => {
+        copyThoughtsBtn.classList.add('copied');
+        if (copyThoughtsIcon) copyThoughtsIcon.textContent = '✅';
+        if (copyThoughtsLabel) copyThoughtsLabel.textContent = isZh ? '已複製!' : 'Copied!';
+        setTimeout(() => {
+          copyThoughtsBtn.classList.remove('copied');
+          if (copyThoughtsIcon) copyThoughtsIcon.textContent = '📋';
+          if (copyThoughtsLabel) copyThoughtsLabel.textContent = isZh ? '複製思考' : 'Copy Thoughts';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy thoughts:', err);
+      });
+    });
+  }
 
   const toggleBtn = thinkingCard.querySelector('.thinking-toggle-btn');
   const body = thinkingCard.querySelector('.llm-thinking-body');
@@ -879,6 +1168,20 @@ function renderFullAnalysis(data, ticker) {
     // Council has provided feedback: Unlock & Display the Portfolio Manager Verdict Sidebar
     if (elements.pmAwaitingCard) elements.pmAwaitingCard.classList.add('hidden');
     if (elements.pmVerdictPanel) elements.pmVerdictPanel.classList.remove('hidden');
+
+    // Update Mobile Sticky Summary Bar data
+    if (elements.mobileStickyTicker) elements.mobileStickyTicker.textContent = `$${ticker}`;
+    if (elements.mobileStickyAction) elements.mobileStickyAction.textContent = action;
+    if (elements.mobileStickyConviction) {
+      elements.mobileStickyConviction.textContent = `${data.riskManager?.weightedConvictionScore || 84}%`;
+    }
+  }
+
+  // Show and initialize Batch CoT button
+  if (elements.cotBatchToggleBtn) {
+    elements.cotBatchToggleBtn.classList.remove('hidden');
+    state.allCotExpanded = false;
+    updateBatchCotButtonText();
   }
 
   state.currentAnalysis = { ticker, results: parsedResults, data };
@@ -1249,10 +1552,16 @@ function renderMockupSageCard(item, isZh) {
     </div>
 
     <div class="card-cot-section">
-      <button type="button" class="cot-toggle-btn">
-        <span>🧠 ${isZh ? '深入思維鏈 (CoT)' : 'Chain of Thought (CoT)'}</span>
-        <span class="cot-toggle-icon">▼</span>
-      </button>
+      <div class="cot-header-wrap">
+        <button type="button" class="cot-toggle-btn">
+          <span>🧠 ${isZh ? '深入思維鏈 (CoT)' : 'Chain of Thought (CoT)'}</span>
+          <span class="cot-toggle-icon">▼</span>
+        </button>
+        <button type="button" class="cot-copy-btn" title="${isZh ? '複製此思維鏈' : 'Copy Chain of Thought'}">
+          <span class="cot-copy-icon">📋</span>
+          <span class="cot-copy-label">${isZh ? '複製' : 'Copy'}</span>
+        </button>
+      </div>
       <div class="cot-steps-box hidden">
         ${(chainOfThought || []).map((step, idx) => `
           <div class="cot-step-row">
@@ -1283,6 +1592,34 @@ function renderMockupSageCard(item, isZh) {
       cotBtn.classList.toggle('open', isHidden);
       const icon = cotBtn.querySelector('.cot-toggle-icon');
       if (icon) icon.textContent = isHidden ? '▲' : '▼';
+    });
+  }
+
+  // Chain of Thought copy handler
+  const cotCopyBtn = card.querySelector('.cot-copy-btn');
+  if (cotCopyBtn) {
+    cotCopyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const titanName = isZh ? sage.nameZh : sage.name;
+      const steps = (chainOfThought && chainOfThought.length > 0)
+        ? chainOfThought.map((s, idx) => `Step ${idx + 1}: ${s}`).join('\n')
+        : (item.quote || '');
+      const cotText = `[${titanName} - ${item.signal || 'HOLD'} (${item.confidence || 0}% Conviction)]\nChain of Thought:\n${steps}`;
+
+      copyTextToClipboard(cotText).then(() => {
+        cotCopyBtn.classList.add('copied');
+        const icon = cotCopyBtn.querySelector('.cot-copy-icon');
+        const label = cotCopyBtn.querySelector('.cot-copy-label');
+        if (icon) icon.textContent = '✅';
+        if (label) label.textContent = isZh ? '已複製!' : 'Copied!';
+        setTimeout(() => {
+          cotCopyBtn.classList.remove('copied');
+          if (icon) icon.textContent = '📋';
+          if (label) label.textContent = isZh ? '複製' : 'Copy';
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy Titan Chain of Thought:', err);
+      });
     });
   }
 
@@ -1384,11 +1721,13 @@ function copyMarkdownReport() {
   md += `- **Conviction**: ${elements.convictionValueText.textContent}\n`;
   md += `- **Entry**: ${elements.entryZoneText.textContent} | **Stop Loss**: ${elements.stopLossText.textContent}\n`;
 
-  navigator.clipboard.writeText(md).then(() => {
+  copyTextToClipboard(md).then(() => {
     elements.copyReportBtn.textContent = isZh ? '✅ 已複製!' : '✅ Copied!';
     setTimeout(() => {
       elements.copyReportBtn.textContent = isZh ? '📋 複製 Markdown' : '📋 Copy Markdown';
     }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy report markdown:', err);
   });
 }
 
