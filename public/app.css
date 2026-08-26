@@ -225,7 +225,45 @@ body {
   transform: scale(1.03);
 }
 
+/* Engine Toggle Button Pill */
+.engine-toggle-btn {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-pill);
+  color: #6ee7b7;
+  padding: 0.45rem 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.engine-toggle-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #34d399;
+  color: #ffffff;
+  transform: scale(1.03);
+}
+
+.engine-toggle-btn.deepseek-active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+}
+
+.engine-toggle-btn.auto-active {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #7dd3fc;
+}
+
 .header-icon-btn {
+
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 50%;

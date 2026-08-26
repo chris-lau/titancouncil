@@ -6,6 +6,7 @@ const state = {
   activeFilter: 'all',
   ticker: 'NVDA',
   language: localStorage.getItem('titancouncil_language') || 'en',
+  engine: localStorage.getItem('titancouncil_engine') || 'gemini',
   instructions: '',
   currentAnalysis: null,
   isAnalyzing: false,
@@ -22,6 +23,9 @@ const elements = {
   filterHelpModal: document.getElementById('filterHelpModal'),
   closeFilterHelpBtn: document.getElementById('closeFilterHelpBtn'),
   gotItBtn: document.getElementById('gotItBtn'),
+  engineToggleBtn: document.getElementById('engineToggleBtn'),
+  engineIcon: document.getElementById('engineIcon'),
+  engineCurrentText: document.getElementById('engineCurrentText'),
   langToggleBtn: document.getElementById('langToggleBtn'),
   langCurrentText: document.getElementById('langCurrentText'),
   filterPillsContainer: document.getElementById('filterPillsContainer'),
@@ -35,6 +39,7 @@ const elements = {
   cancelBtnLabel: document.getElementById('cancelBtnLabel'),
   progressBarFill: document.getElementById('progressBarFill'),
   sageCardsGrid: document.getElementById('sageCardsGrid'),
+
 
   pmAwaitingCard: document.getElementById('pmAwaitingCard'),
   pmVerdictPanel: document.getElementById('pmVerdictPanel'),
@@ -87,10 +92,30 @@ function init() {
   attachEventListeners();
   buildProfileQuickSwitcher();
   applyLanguage(state.language);
+  updateEngineUI();
   // Instant Initial Render: 0ms mobile first paint with interactive welcome state
   renderWelcomeState();
 }
 
+function updateEngineUI() {
+  if (!elements.engineToggleBtn) return;
+  const isZh = state.language === 'zh';
+  elements.engineToggleBtn.classList.remove('deepseek-active', 'auto-active');
+  
+  if (state.engine === 'deepseek') {
+    elements.engineToggleBtn.classList.add('deepseek-active');
+    if (elements.engineIcon) elements.engineIcon.textContent = '🧠';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek R1' : 'DeepSeek R1';
+  } else if (state.engine === 'auto') {
+    elements.engineToggleBtn.classList.add('auto-active');
+    if (elements.engineIcon) elements.engineIcon.textContent = '🔄';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? '自動輪替' : 'Auto Engine';
+  } else {
+    // Default Gemini
+    if (elements.engineIcon) elements.engineIcon.textContent = '⚡';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'Gemini 3.7' : 'Gemini 3.7';
+  }
+}
 
 function attachEventListeners() {
   // Summon Button & Enter Key
@@ -102,6 +127,18 @@ function attachEventListeners() {
     const { cleanTicker } = parseInputQuery(e.target.value);
     elements.headerCompanyName.textContent = getCompanyDetails(cleanTicker).name;
   });
+
+  // AI Engine Switcher Button (Gemini 3.7 <-> DeepSeek R1 <-> Auto)
+  if (elements.engineToggleBtn) {
+    elements.engineToggleBtn.addEventListener('click', () => {
+      if (state.engine === 'gemini') state.engine = 'deepseek';
+      else if (state.engine === 'deepseek') state.engine = 'auto';
+      else state.engine = 'gemini';
+      localStorage.setItem('titancouncil_engine', state.engine);
+      updateEngineUI();
+    });
+  }
+
 
 
   // Titan Profile Modal Close Events
@@ -470,9 +507,13 @@ function renderSkeletonCards(selectedSages) {
 
 
 // Deliberation via Google Gemini API through Cloudflare Pages Function with Transparent Retry Notifications
+// Deliberation via AI API (Google Gemini / DeepSeek) through Cloudflare Pages Function
 async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
-  elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行即時思維鏈研判...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...';
+  const isDeepSeek = state.engine === 'deepseek';
+  elements.statusMessage.textContent = isZh 
+    ? (isDeepSeek ? '正在透過 DeepSeek-R1 深度思維鏈研判中...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
+    : (isDeepSeek ? 'Executing deep Chain of Thought deliberation via DeepSeek-R1...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
   elements.progressBarFill.style.width = '60%';
 
   const MAX_RETRIES = 2; // Strict bound: Maximum 2 attempts total (1 initial + 1 retry)
@@ -484,10 +525,9 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
     if (attempt > 1) {
       if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.remove('hidden');
       elements.statusMessage.textContent = isZh 
-        ? `⏳ Gemini 伺服器忙碌中（高負載），正在最後重試 (第 ${attempt}/${MAX_RETRIES} 次)...` 
-        : `⏳ Gemini is busy (high demand). Retrying once more (Attempt ${attempt}/${MAX_RETRIES})...`;
+        ? `⏳ AI 伺服器忙碌中（高負載），正在最後重試 (第 ${attempt}/${MAX_RETRIES} 次)...` 
+        : `⏳ AI service is busy (high demand). Retrying once more (Attempt ${attempt}/${MAX_RETRIES})...`;
       elements.progressBarFill.style.width = '75%';
-
 
       // Wait 2.2s before retry with abort awareness
       await new Promise((resolve) => {
@@ -511,6 +551,7 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
           ticker,
           sages: selectedSages.map(s => s.name),
           instructions,
+          engine: state.engine,
           language: state.language
         })
       });
@@ -519,6 +560,7 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
       lastError = new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
       continue;
     }
+
 
     const rawData = await response.json().catch(() => ({}));
 
@@ -638,10 +680,11 @@ function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed =
 
   // Format Model Name for Pill Display
   let modelLabel = 'Gemini 3.7 Flash';
-  if (modelUsed.includes('3.7')) modelLabel = 'Gemini 3.7 Flash';
+  if (modelUsed.includes('reasoner')) modelLabel = 'DeepSeek-R1 (Reasoner)';
+  else if (modelUsed.includes('deepseek')) modelLabel = 'DeepSeek-V3';
+  else if (modelUsed.includes('3.7')) modelLabel = 'Gemini 3.7 Flash';
   else if (modelUsed.includes('2.5')) modelLabel = 'Gemini 2.5 Flash';
   else if (modelUsed.includes('2.0')) modelLabel = 'Gemini 2.0 Flash';
-  else if (modelUsed.includes('1.5')) modelLabel = 'Gemini 1.5 Flash';
 
   // Engine Status Indicator
   const enginePill = document.createElement('span');
@@ -650,14 +693,13 @@ function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed =
     enginePill.innerHTML = `✨ Live ${modelLabel} (Active)`;
   } else {
     enginePill.className = 'source-badge-pill engine-badge-error';
-    enginePill.innerHTML = '⚠️ Gemini Offline';
+    enginePill.innerHTML = '⚠️ AI Engine Offline';
   }
-  elements.sourcesPillsContainer.appendChild(enginePill);
-
   elements.sourcesPillsContainer.appendChild(enginePill);
 
   // Render clickable live web citations from Google Search Grounding if available
   if (webLinks && webLinks.length > 0) {
+
     webLinks.forEach(link => {
       const a = document.createElement('a');
       a.className = 'source-link-pill';

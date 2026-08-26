@@ -84,7 +84,7 @@ export async function onRequestPost(context) {
     }
 
     const body = await request.json();
-    const { ticker, sages, instructions, financials, language = 'en' } = body;
+    const { ticker, sages, instructions, financials, language = 'en', engine = 'auto' } = body;
     const userDirectives = instructions || financials || '';
 
     if (!ticker || typeof ticker !== 'string' || ticker.trim().length > 20) {
@@ -94,13 +94,11 @@ export async function onRequestPost(context) {
       });
     }
 
-
     const isZh = language === 'zh' || language === 'zh-CN' || language === 'zh-TW';
-    const isCanadian = ticker.toUpperCase().endsWith('.TO') || ticker.toUpperCase().endsWith('.V');
 
     const systemPrompt = `You are the TitanCouncil Coordinator.
 Conduct a rigorous multi-perspective stock deliberation on: "${ticker}".
-Use live Google Search to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
+Use live market knowledge to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
 
@@ -108,7 +106,6 @@ User Custom Directives & Considerations: ${userDirectives ? `"${userDirectives}"
 ${userDirectives ? 'MANDATORY: Every Titan and the Portfolio Manager MUST explicitly address, evaluate, and factor these user considerations (e.g. specific risk scenarios, tariffs, holding horizons, or growth assumptions) into their reasoning and Chain of Thought.' : ''}
 
 Output Language: ${isZh ? 'Traditional Chinese (繁體中文)' : 'English'}.
-
 
 CRITICAL REQUIREMENTS FOR TITAN-SPECIFIC EVIDENCE & SOURCES:
 - Each Titan MUST cite their own distinct, authentic data source and concrete quantitative data snippet relevant to their methodology.
@@ -131,11 +128,11 @@ Respond ONLY in valid JSON matching this schema:
 {
   "ticker": "${ticker}",
   "livePrice": "$XXX.XX",
-  "provenanceSummary": "Live Google Search & SEC EDGAR / SEDAR+ Grounded Analysis",
+  "provenanceSummary": "Live Analysis Grounded in Financial Data",
   "sources": [
-    "Google Finance (Real-Time Price & Multiples)",
+    "Market Data Feeds",
     "SEC EDGAR 10-K / 10-Q Filings",
-    "SEDAR+ Regulatory Disclosures (Canada TSX)",
+    "SEDAR+ Regulatory Disclosures",
     "NYU Stern Corporate Valuation Database"
   ],
   "verdicts": [
@@ -145,8 +142,7 @@ Respond ONLY in valid JSON matching this schema:
       "signal": "BULLISH" | "BEARISH" | "NEUTRAL",
       "confidence": 85,
       "sourceName": "SEC EDGAR 10-K (Owner Earnings & ROE)",
-      "sourceDataSnippet": "Actual numbers quoted (e.g. 2024 Revenue $96.3B, ROE 115%, FCF $53.8B, Cash $34.8B)",
-      "sourceUrl": "https://www.google.com/finance/quote/${ticker.replace('.TO', '')}",
+      "sourceDataSnippet": "Actual numbers quoted",
       "quote": "1-2 sentence core verdict in authentic voice",
       "chainOfThought": [
         "1. Competence & Franchise: [1 sentence analysis]",
@@ -164,9 +160,9 @@ Respond ONLY in valid JSON matching this schema:
     "maxPosition": "5% - 8% allocation"
   },
   "portfolioManager": {
-    "action": "ACCUMULATE ON PULLBACKS" | "STRONG BUY" | "HOLD / WATCH" | "TRIM / AVOID",
-    "conviction": "HIGH" | "MODERATE" | "LOW",
-    "timeHorizon": "2-4 Years (Medium to Long Term)",
+    "action": "ACCUMULATE ON DIPS" | "STRONG BUY" | "HOLD" | "HEDGE & REDUCE" | "AVOID",
+    "conviction": "HIGH" | "MEDIUM" | "LOW",
+    "timeHorizon": "2-4 Years",
     "execution": {
       "entryZone": "$XXX - $YYY",
       "stopLoss": "$ZZZ"
@@ -181,136 +177,162 @@ Respond ONLY in valid JSON matching this schema:
 }`;
 
     const geminiKey = env.GEMINI_API_KEY || (typeof GEMINI_API_KEY !== 'undefined' ? GEMINI_API_KEY : null);
+    const deepseekKey = env.DEEPSEEK_API_KEY || (typeof DEEPSEEK_API_KEY !== 'undefined' ? DEEPSEEK_API_KEY : null);
 
-    if (!geminiKey) {
+    if (!geminiKey && !deepseekKey) {
       return new Response(JSON.stringify({
-        error: 'GEMINI_API_KEY environment variable is not configured. Please set GEMINI_API_KEY in Cloudflare Pages Environment Variables.'
+        error: 'No AI API Key configured. Please set GEMINI_API_KEY or DEEPSEEK_API_KEY in Cloudflare Pages Environment Variables.'
       }), {
         status: 503,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Models to try in priority order
-    const MODELS_TO_TRY = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-    let geminiData = null;
-    let successfulModel = 'gemini-3.7-flash';
-    let lastErrorMsg = '';
+    let parsedJson = null;
 
-    for (const model of MODELS_TO_TRY) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+    // ==========================================
+    // 1. DeepSeek Engine Execution
+    // ==========================================
+    async function executeDeepSeek() {
+      if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured');
+      
+      const deepseekModels = ['deepseek-reasoner', 'deepseek-chat'];
+      for (const dsModel of deepseekModels) {
+        try {
+          const res = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${deepseekKey}`
+            },
+            body: JSON.stringify({
+              model: dsModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: `Execute rigorous investment deliberation on ${ticker}. Respond ONLY in valid JSON matching schema.` }
+              ],
+              response_format: { type: 'json_object' }
+            })
+          });
 
-      try {
-        // 1. Try with Google Search Grounding Tool
-        let res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
-                ]
-              }
-            ],
-            tools: [
-              { googleSearch: {} }
-            ]
-          })
-        });
-
-        if (res.ok) {
-          geminiData = await res.json();
-          successfulModel = model;
-          break;
+          if (res.ok) {
+            const dsData = await res.json();
+            const content = dsData.choices?.[0]?.message?.content || '{}';
+            const reasoning = dsData.choices?.[0]?.message?.reasoning_content || '';
+            const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+            const json = JSON.parse(cleaned);
+            json.deepseekReasoning = reasoning;
+            json.modelUsed = dsModel;
+            json.engine = 'deepseek';
+            return json;
+          }
+        } catch (e) {
+          // Continue to next deepseek model
         }
+      }
+      throw new Error('DeepSeek API call failed');
+    }
 
-        // 2. Fallback: Pure JSON generation without search tool
-        res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
-                ]
+    // ==========================================
+    // 2. Google Gemini Engine Execution
+    // ==========================================
+    async function executeGemini() {
+      if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
+
+      const geminiModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+      for (const model of geminiModels) {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+
+        try {
+          // A. With Search Grounding
+          let res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }] }],
+              tools: [{ googleSearch: {} }]
+            })
+          });
+
+          if (res.ok) {
+            const geminiData = await res.json();
+            const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+            const json = JSON.parse(cleaned);
+            json.modelUsed = model;
+            json.engine = 'gemini';
+            
+            const groundingChunks = geminiData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+            const webLinks = [];
+            groundingChunks.forEach(chunk => {
+              if (chunk.web?.title && chunk.web?.uri) {
+                webLinks.push({ title: chunk.web.title, url: chunk.web.uri });
               }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.7
-            }
-          })
-        });
+            });
+            if (webLinks.length > 0) json.groundingWebLinks = webLinks;
+            return json;
+          }
 
-        if (res.ok) {
-          geminiData = await res.json();
-          successfulModel = model;
-          break;
+          // B. Fallback without search tool
+          res = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
+              generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+            })
+          });
+
+          if (res.ok) {
+            const geminiData = await res.json();
+            const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+            const json = JSON.parse(cleaned);
+            json.modelUsed = model;
+            json.engine = 'gemini';
+            return json;
+          }
+        } catch (e) {
+          // Continue to next candidate model
         }
+      }
+      throw new Error('Gemini API calls failed');
+    }
 
-        lastErrorMsg = await res.text();
-      } catch (e) {
-        lastErrorMsg = e.message;
+    // ==========================================
+    // 3. Engine Dispatch & Failover
+    // ==========================================
+    if (engine === 'deepseek') {
+      parsedJson = await executeDeepSeek();
+    } else if (engine === 'gemini') {
+      parsedJson = await executeGemini();
+    } else {
+      // Auto mode: Try Gemini first, fallback to DeepSeek if Gemini fails/busy
+      if (geminiKey) {
+        try {
+          parsedJson = await executeGemini();
+        } catch (geminiErr) {
+          if (deepseekKey) {
+            parsedJson = await executeDeepSeek();
+          } else {
+            throw geminiErr;
+          }
+        }
+      } else if (deepseekKey) {
+        parsedJson = await executeDeepSeek();
       }
     }
 
-    if (!geminiData) {
+    if (!parsedJson) {
       return new Response(JSON.stringify({ 
-        error: `Gemini server busy or high demand: ${lastErrorMsg || 'Please retry in a moment.'}` 
+        error: 'AI Deliberation failed across active engines. Please check API keys or retry.' 
       }), {
         status: 503,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-
-
-
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
-    
-    // Extract JSON object from potential markdown fences
-    let parsedJson = {};
-    try {
-      const cleanedText = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-      parsedJson = JSON.parse(cleanedText);
-    } catch {
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        parsedJson = JSON.parse(rawText.substring(firstBrace, lastBrace + 1));
-      } else {
-        parsedJson = { error: 'Failed to parse structured JSON from Gemini' };
-      }
-    }
-
-    // Mark that this response was generated live by Google Gemini
-    parsedJson.isLiveGemini = true;
-    parsedJson.modelUsed = successfulModel;
-
-
-
-
-    // Extract live web search grounding citations if available
-    const groundingChunks = geminiData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const webLinks = [];
-    groundingChunks.forEach(chunk => {
-      if (chunk.web?.title && chunk.web?.uri) {
-        webLinks.push({
-          title: chunk.web.title,
-          url: chunk.web.uri
-        });
-      }
-    });
-
-    if (webLinks.length > 0) {
-      parsedJson.groundingWebLinks = webLinks;
-    }
-
+    parsedJson.isLive = true;
 
     return new Response(JSON.stringify(parsedJson), {
       headers: {
