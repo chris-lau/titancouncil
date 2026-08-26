@@ -191,80 +191,61 @@ Respond ONLY in valid JSON matching this schema:
       });
     }
 
-    const CANDIDATE_MODELS = [
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-pro-latest',
-      'gemini-1.5-pro'
-    ];
+    const MODEL_NAME = 'gemini-3.7-flash';
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${geminiKey}`;
 
     let geminiData = null;
-    let lastError = null;
 
-    for (const modelName of CANDIDATE_MODELS) {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
-
-      // 1. Try with Google Search Grounding Tool
-      try {
-        let res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
-                ]
-              }
-            ],
-            tools: [
-              { googleSearch: {} }
+    // 1. Try with Google Search Grounding Tool
+    let res = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
             ]
-          })
-        });
+          }
+        ],
+        tools: [
+          { googleSearch: {} }
+        ]
+      })
+    });
 
-        if (res.ok) {
-          geminiData = await res.json();
-          break;
-        }
-
-        // 2. Fallback: Pure JSON Generation without search tool
-        res = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.7
+    if (res.ok) {
+      geminiData = await res.json();
+    } else {
+      // 2. Fallback: Pure JSON Generation without search tool
+      res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+              ]
             }
-          })
-        });
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.7
+          }
+        })
+      });
 
-        if (res.ok) {
-          geminiData = await res.json();
-          break;
-        }
-
+      if (res.ok) {
+        geminiData = await res.json();
+      } else {
         const errText = await res.text();
-        lastError = new Error(`Model ${modelName} returned [${res.status}]: ${errText}`);
-      } catch (e) {
-        lastError = e;
+        throw new Error(`Gemini 3.7 Flash API error [${res.status}]: ${errText}`);
       }
     }
 
-    if (!geminiData) {
-      throw lastError || new Error('All Gemini candidate models failed to respond.');
-    }
 
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 
@@ -284,8 +265,11 @@ Respond ONLY in valid JSON matching this schema:
       }
     }
 
-    // Mark that this response was generated live by Google Gemini
+    // Mark that this response was generated live by Google Gemini 3.7 Flash
     parsedJson.isLiveGemini = true;
+    parsedJson.modelUsed = MODEL_NAME;
+
+
 
     // Extract live web search grounding citations if available
     const groundingChunks = geminiData.candidates?.[0]?.groundingMetadata?.groundingChunks || [];

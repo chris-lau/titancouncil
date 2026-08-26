@@ -534,7 +534,7 @@ function renderFullAnalysis(data, ticker) {
   });
 
   // Render Data Sources & Citations (including live Google Search web links and engine status)
-  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, true);
+  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, true, data.modelUsed || 'gemini-3.7-flash');
 
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
@@ -560,19 +560,28 @@ function renderFullAnalysis(data, ticker) {
 }
 
 // Render Data Sources Provenance Badges (with optional live web links & engine indicator)
-function renderSourcesBadges(customSources, webLinks, isLive = true) {
+function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed = 'gemini-3.7-flash') {
   if (!elements.sourcesPillsContainer) return;
   elements.sourcesPillsContainer.innerHTML = '';
+
+  // Format Model Name for Pill Display
+  let modelLabel = 'Gemini 3.7 Flash';
+  if (modelUsed.includes('3.7')) modelLabel = 'Gemini 3.7 Flash';
+  else if (modelUsed.includes('2.5')) modelLabel = 'Gemini 2.5 Flash';
+  else if (modelUsed.includes('2.0')) modelLabel = 'Gemini 2.0 Flash';
+  else if (modelUsed.includes('1.5')) modelLabel = 'Gemini 1.5 Flash';
 
   // Engine Status Indicator
   const enginePill = document.createElement('span');
   if (isLive) {
     enginePill.className = 'source-badge-pill engine-badge-live';
-    enginePill.innerHTML = '✨ Live Google Gemini (Active)';
+    enginePill.innerHTML = `✨ Live ${modelLabel} (Active)`;
   } else {
     enginePill.className = 'source-badge-pill engine-badge-error';
     enginePill.innerHTML = '⚠️ Gemini Offline';
   }
+  elements.sourcesPillsContainer.appendChild(enginePill);
+
   elements.sourcesPillsContainer.appendChild(enginePill);
 
   // Render clickable live web citations from Google Search Grounding if available
