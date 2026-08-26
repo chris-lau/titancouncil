@@ -686,7 +686,22 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
               elements.progressBarFill.style.width = '70%';
             } else if (parsed.type === 'content') {
               elements.progressBarFill.style.width = '85%';
+              const toolbarSpan = document.querySelector('.live-thinking-terminal-toolbar span:first-child');
+              if (toolbarSpan && !toolbarSpan.dataset.done) {
+                toolbarSpan.dataset.done = 'true';
+                toolbarSpan.textContent = isZh ? '✅ 深度思維完成 · 正在生成 13 位巨頭評級報告...' : '✅ Thinking Complete · Finalizing Council Verdicts...';
+                
+                const streamTextEl = document.getElementById('liveThinkingStreamText');
+                if (streamTextEl && !streamTextEl.textContent.includes('[✓ Thinking Phase Complete')) {
+                  streamTextEl.textContent = accumulatedThinking + (isZh 
+                    ? '\n\n[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告...]'
+                    : '\n\n[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters...]');
+                  const streamBodyEl = document.getElementById('liveThinkingStreamBody');
+                  if (streamBodyEl) streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
+                }
+              }
             }
+
           } else if (eventType === 'complete') {
             finalJsonData = parsed;
             if (accumulatedThinking && !finalJsonData.thinkingContent) {

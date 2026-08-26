@@ -199,7 +199,7 @@ Respond ONLY in valid JSON matching this schema:
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured in Cloudflare Environment Variables.');
       
       const candidateConfigs = [
-        // 1. DeepSeek V4 Flash (with streaming)
+        // 1. DeepSeek V4 Flash (with streaming & 8192 token window)
         {
           model: 'deepseek-v4-flash',
           body: {
@@ -210,10 +210,10 @@ Respond ONLY in valid JSON matching this schema:
             ],
             response_format: { type: 'json_object' },
             stream: true,
-            max_tokens: 4096
+            max_tokens: 8192
           }
         },
-        // 2. DeepSeek Reasoner (R1 Thinking Model: streaming)
+        // 2. DeepSeek Reasoner (R1 Thinking Model: streaming & 8192 token window)
         {
           model: 'deepseek-reasoner',
           body: {
@@ -226,7 +226,7 @@ Respond ONLY in valid JSON matching this schema:
             max_tokens: 8192
           }
         },
-        // 3. DeepSeek Chat (V3 Standard: streaming)
+        // 3. DeepSeek Chat (V3 Standard: streaming & 8192 token window)
         {
           model: 'deepseek-chat',
           body: {
@@ -238,10 +238,11 @@ Respond ONLY in valid JSON matching this schema:
             response_format: { type: 'json_object' },
             stream: true,
             temperature: 0.7,
-            max_tokens: 4096
+            max_tokens: 8192
           }
         }
       ];
+
 
       let lastDeepSeekError = '';
 
@@ -288,9 +289,24 @@ Respond ONLY in valid JSON matching this schema:
                   }
                 } catch (pe) {}
               }
+            buffer += decoder.decode(new Uint8Array(), { stream: false });
+            if (buffer.trim() && buffer.startsWith('data:')) {
+              try {
+                const parsed = JSON.parse(buffer.slice(5).trim());
+                const delta = parsed.choices?.[0]?.delta || {};
+                if (delta.reasoning_content) {
+                  fullReasoning += delta.reasoning_content;
+                  if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
+                }
+                if (delta.content) {
+                  fullContent += delta.content;
+                  if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
+                }
+              } catch (e) {}
             }
 
             const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+
             const json = JSON.parse(cleaned);
             json.thinkingContent = fullReasoning;
             json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
@@ -322,8 +338,10 @@ Respond ONLY in valid JSON matching this schema:
 
         const generationConfig = {
           temperature: 0.7,
+          maxOutputTokens: 8192,
           ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
+
 
         try {
           // A. With Search Grounding + Stream
@@ -386,11 +404,25 @@ Respond ONLY in valid JSON matching this schema:
                   if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
                     groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
                   }
-                } catch (pe) {}
-              }
+              buffer += decoder.decode(new Uint8Array(), { stream: false });
+            if (buffer.trim() && buffer.startsWith('data:')) {
+              try {
+                const parsed = JSON.parse(buffer.slice(5).trim());
+                const parts = parsed.candidates?.[0]?.content?.parts || [];
+                parts.forEach(part => {
+                  if (part.thought) {
+                    thoughts += (part.text || '');
+                    if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
+                  } else if (part.text) {
+                    rawText += part.text;
+                    if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
+                  }
+                });
+              } catch (e) {}
             }
 
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
+
             const json = JSON.parse(cleaned);
             json.thinkingContent = thoughts;
             json.thinkingMode = is37;
