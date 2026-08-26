@@ -105,8 +105,9 @@ function updateEngineUI() {
   if (state.engine === 'deepseek') {
     elements.engineToggleBtn.classList.add('deepseek-active');
     if (elements.engineIcon) elements.engineIcon.textContent = '🧠';
-    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek V4' : 'DeepSeek V4';
+    if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? 'DeepSeek R1' : 'DeepSeek R1';
   } else if (state.engine === 'auto') {
+
     elements.engineToggleBtn.classList.add('auto-active');
     if (elements.engineIcon) elements.engineIcon.textContent = '🔄';
     if (elements.engineCurrentText) elements.engineCurrentText.textContent = isZh ? '自動輪替' : 'Auto Engine';
@@ -512,9 +513,10 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   const isDeepSeek = state.engine === 'deepseek';
   elements.statusMessage.textContent = isZh 
-    ? (isDeepSeek ? '正在透過 DeepSeek-V4 Flash 執行深度研判...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
-    : (isDeepSeek ? 'Executing deep deliberation via DeepSeek-V4 Flash...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
+    ? (isDeepSeek ? '正在透過 DeepSeek-R1 深度思維鏈研判中...' : '正在透過 Google Gemini 執行即時思維鏈研判...') 
+    : (isDeepSeek ? 'Executing deep Chain of Thought deliberation via DeepSeek-R1...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...');
   elements.progressBarFill.style.width = '60%';
+
 
 
   const MAX_RETRIES = 2; // Strict bound: Maximum 2 attempts total (1 initial + 1 retry)

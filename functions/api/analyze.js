@@ -191,51 +191,53 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution (Official Thinking Mode)
+    // 1. DeepSeek Engine Execution (DeepSeek-R1 / DeepSeek-V3)
     // ==========================================
     async function executeDeepSeek() {
-      if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured');
+
+      if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured in Cloudflare Environment Variables.');
       
-      const deepseekModels = ['deepseek-v4-flash', 'deepseek-chat'];
-      for (const dsModel of deepseekModels) {
-        try {
-          // Official DeepSeek Thinking Mode payload
-          const reqBody = {
-            model: dsModel,
+      const candidateConfigs = [
+        // 1. DeepSeek Reasoner (R1 Thinking Model: no response_format / temperature per API spec)
+        {
+          model: 'deepseek-reasoner',
+          body: {
+            model: 'deepseek-reasoner',
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
-            thinking: {
-              type: "enabled"
-            },
-            reasoning_effort: "high",
-            max_tokens: 4096,
-            response_format: { type: 'json_object' }
-          };
+            max_tokens: 8192
+          }
+        },
+        // 2. DeepSeek Chat (V3 Standard: supports json_object and temperature)
+        {
+          model: 'deepseek-chat',
+          body: {
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Execute detailed investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
+            ],
+            response_format: { type: 'json_object' },
+            temperature: 0.7,
+            max_tokens: 4096
+          }
+        }
+      ];
 
-          let res = await fetch('https://api.deepseek.com/chat/completions', {
+      let lastDeepSeekError = '';
+
+      for (const config of candidateConfigs) {
+        try {
+          const res = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${deepseekKey}`
             },
-            body: JSON.stringify(reqBody)
+            body: JSON.stringify(config.body)
           });
-
-          // Fallback if model doesn't accept thinking object directly
-          if (!res.ok) {
-            delete reqBody.thinking;
-            delete reqBody.reasoning_effort;
-            res = await fetch('https://api.deepseek.com/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${deepseekKey}`
-              },
-              body: JSON.stringify(reqBody)
-            });
-          }
 
           if (res.ok) {
             const dsData = await res.json();
@@ -244,23 +246,26 @@ Respond ONLY in valid JSON matching this schema:
             const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
             json.thinkingContent = reasoning;
-            json.thinkingMode = Boolean(reasoning) || true;
-            json.modelUsed = dsModel;
+            json.thinkingMode = Boolean(reasoning) || (config.model === 'deepseek-reasoner');
+            json.modelUsed = config.model;
             json.engine = 'deepseek';
             return json;
+          } else {
+            const errText = await res.text();
+            lastDeepSeekError = `[${res.status}] ${errText}`;
           }
         } catch (e) {
-          // Continue to next deepseek model
+          lastDeepSeekError = e.message;
         }
       }
 
-
-      throw new Error('DeepSeek API call failed');
+      throw new Error(`DeepSeek API error: ${lastDeepSeekError || 'Failed to communicate with DeepSeek endpoint'}`);
     }
 
     // ==========================================
     // 2. Google Gemini Engine Execution (Gemini 3.7 Thinking Mode)
     // ==========================================
+
     async function executeGemini() {
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
