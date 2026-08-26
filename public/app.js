@@ -648,7 +648,7 @@ function renderFullAnalysis(data, ticker) {
   });
 
   // Render Data Sources & Citations (including live Google Search web links and engine status)
-  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, true, data.modelUsed || 'gemini-3.7-flash');
+  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, true, data.modelUsed || 'gemini-3.7-flash', data.thinkingMode);
 
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
@@ -674,15 +674,15 @@ function renderFullAnalysis(data, ticker) {
 }
 
 // Render Data Sources Provenance Badges (with optional live web links & engine indicator)
-function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed = 'gemini-3.7-flash') {
+function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed = 'gemini-3.7-flash', isThinking = false) {
   if (!elements.sourcesPillsContainer) return;
   elements.sourcesPillsContainer.innerHTML = '';
 
   // Format Model Name for Pill Display
   let modelLabel = 'Gemini 3.7 Flash';
-  if (modelUsed.includes('reasoner')) modelLabel = 'DeepSeek-R1 (Reasoner)';
+  if (modelUsed.includes('reasoner')) modelLabel = 'DeepSeek-R1 (Thinking)';
   else if (modelUsed.includes('deepseek')) modelLabel = 'DeepSeek-V3';
-  else if (modelUsed.includes('3.7')) modelLabel = 'Gemini 3.7 Flash';
+  else if (modelUsed.includes('3.7')) modelLabel = isThinking ? 'Gemini 3.7 Flash (Thinking)' : 'Gemini 3.7 Flash';
   else if (modelUsed.includes('2.5')) modelLabel = 'Gemini 2.5 Flash';
   else if (modelUsed.includes('2.0')) modelLabel = 'Gemini 2.0 Flash';
 
@@ -690,12 +690,13 @@ function renderSourcesBadges(customSources, webLinks, isLive = true, modelUsed =
   const enginePill = document.createElement('span');
   if (isLive) {
     enginePill.className = 'source-badge-pill engine-badge-live';
-    enginePill.innerHTML = `✨ Live ${modelLabel} (Active)`;
+    enginePill.innerHTML = `✨ Live ${modelLabel}`;
   } else {
     enginePill.className = 'source-badge-pill engine-badge-error';
     enginePill.innerHTML = '⚠️ AI Engine Offline';
   }
   elements.sourcesPillsContainer.appendChild(enginePill);
+
 
   // Render clickable live web citations from Google Search Grounding if available
   if (webLinks && webLinks.length > 0) {

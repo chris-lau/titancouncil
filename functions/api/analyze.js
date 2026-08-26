@@ -191,28 +191,35 @@ Respond ONLY in valid JSON matching this schema:
     let parsedJson = null;
 
     // ==========================================
-    // 1. DeepSeek Engine Execution
+    // 1. DeepSeek Engine Execution (DeepSeek-R1 Thinking Mode)
     // ==========================================
     async function executeDeepSeek() {
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured');
       
+      // deepseek-reasoner is DeepSeek's official reasoning/thinking model (DeepSeek-R1)
       const deepseekModels = ['deepseek-reasoner', 'deepseek-chat'];
       for (const dsModel of deepseekModels) {
         try {
+          const reqBody = {
+            model: dsModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
+            ]
+          };
+
+          // deepseek-chat supports response_format json_object
+          if (dsModel === 'deepseek-chat') {
+            reqBody.response_format = { type: 'json_object' };
+          }
+
           const res = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${deepseekKey}`
             },
-            body: JSON.stringify({
-              model: dsModel,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: `Execute rigorous investment deliberation on ${ticker}. Respond ONLY in valid JSON matching schema.` }
-              ],
-              response_format: { type: 'json_object' }
-            })
+            body: JSON.stringify(reqBody)
           });
 
           if (res.ok) {
@@ -221,7 +228,8 @@ Respond ONLY in valid JSON matching this schema:
             const reasoning = dsData.choices?.[0]?.message?.reasoning_content || '';
             const cleaned = content.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
-            json.deepseekReasoning = reasoning;
+            json.thinkingContent = reasoning;
+            json.thinkingMode = true;
             json.modelUsed = dsModel;
             json.engine = 'deepseek';
             return json;
@@ -234,7 +242,7 @@ Respond ONLY in valid JSON matching this schema:
     }
 
     // ==========================================
-    // 2. Google Gemini Engine Execution
+    // 2. Google Gemini Engine Execution (Gemini 3.7 Thinking Mode)
     // ==========================================
     async function executeGemini() {
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
@@ -243,22 +251,43 @@ Respond ONLY in valid JSON matching this schema:
       for (const model of geminiModels) {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
 
+        // Configure thinking mode for Gemini 3.7 Flash (thinkingBudget: 2048 tokens)
+        const is37 = model.includes('3.7');
+        const generationConfig = {
+          temperature: 0.7,
+          ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+        };
+
         try {
-          // A. With Search Grounding
+          // A. With Search Grounding + Thinking Mode
           let res = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }] }],
-              tools: [{ googleSearch: {} }]
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and live Google search for ${ticker} actual financial figures. Execute deliberation with explicit data snippets and source links. Return strict JSON.` }] }],
+              tools: [{ googleSearch: {} }],
+              generationConfig
             })
           });
 
           if (res.ok) {
             const geminiData = await res.json();
-            const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const parts = geminiData.candidates?.[0]?.content?.parts || [];
+            let rawText = '{}';
+            let thoughts = '';
+
+            parts.forEach(part => {
+              if (part.thought) {
+                thoughts += (part.text || '') + '\n';
+              } else if (part.text) {
+                rawText = part.text;
+              }
+            });
+
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
+            json.thinkingContent = thoughts;
+            json.thinkingMode = is37;
             json.modelUsed = model;
             json.engine = 'gemini';
             
@@ -273,21 +302,37 @@ Respond ONLY in valid JSON matching this schema:
             return json;
           }
 
-          // B. Fallback without search tool
+          // B. Fallback without search tool + JSON schema + Thinking Mode
           res = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
-              generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
+              generationConfig: {
+                ...generationConfig,
+                responseMimeType: "application/json"
+              }
             })
           });
 
           if (res.ok) {
             const geminiData = await res.json();
-            const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const parts = geminiData.candidates?.[0]?.content?.parts || [];
+            let rawText = '{}';
+            let thoughts = '';
+
+            parts.forEach(part => {
+              if (part.thought) {
+                thoughts += (part.text || '') + '\n';
+              } else if (part.text) {
+                rawText = part.text;
+              }
+            });
+
             const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
             const json = JSON.parse(cleaned);
+            json.thinkingContent = thoughts;
+            json.thinkingMode = is37;
             json.modelUsed = model;
             json.engine = 'gemini';
             return json;
@@ -298,6 +343,7 @@ Respond ONLY in valid JSON matching this schema:
       }
       throw new Error('Gemini API calls failed');
     }
+
 
     // ==========================================
     // 3. Engine Dispatch & Failover
