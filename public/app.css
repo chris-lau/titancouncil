@@ -1700,12 +1700,92 @@ body {
   font-weight: 700 !important;
 }
 
-.engine-badge-sim {
-  background: rgba(245, 158, 11, 0.12) !important;
-  border: 1px solid rgba(245, 158, 11, 0.35) !important;
-  color: #fbbf24 !important;
+.engine-badge-error {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  color: #f87171 !important;
   font-weight: 600 !important;
 }
+
+/* ===== Deliberation Error Card ===== */
+.deliberation-error-card {
+  grid-column: 1 / -1;
+  background: rgba(30, 15, 20, 0.7);
+  border: 1.5px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 8px 32px rgba(239, 68, 68, 0.15);
+  border-radius: 16px;
+  padding: 1.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  text-align: center;
+  align-items: center;
+  animation: fadeInDown 0.3s ease;
+}
+
+.error-card-icon {
+  font-size: 2.5rem;
+}
+
+.error-card-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fca5a5;
+}
+
+.error-card-desc {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  max-width: 580px;
+}
+
+.error-card-steps {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem 1.2rem;
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+  width: 100%;
+  max-width: 540px;
+}
+
+.error-card-steps ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.error-card-steps code {
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.error-retry-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  transition: all 0.2s ease;
+}
+
+.error-retry-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+}
+
 
 
 

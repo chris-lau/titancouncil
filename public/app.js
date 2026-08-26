@@ -180,13 +180,13 @@ function setLanguage(lang) {
   localStorage.setItem('titancouncil_language', lang);
   applyLanguage(lang);
   
-  if (state.currentAnalysis) {
-    const { ticker, companyInfo, flags } = state.currentAnalysis;
-    runSimulatedDeliberation(ticker, SAGES.filter(s => state.selectedSageIds.has(s.id)), state.financials, companyInfo || getCompanyDetails(ticker));
+  if (state.currentAnalysis?.data) {
+    renderFullAnalysis(state.currentAnalysis.data, state.ticker);
   } else {
     handleSummon();
   }
 }
+
 
 function applyLanguage(lang) {
   const dict = I18N[lang] || I18N.en;
@@ -317,7 +317,6 @@ async function handleSummon() {
   elements.councilTallyText.textContent = isZh 
     ? `${state.selectedSageIds.size} 位大師正在研判`
     : `${state.selectedSageIds.size} Titans Deliberating`;
-
   elements.deliberationProgress.classList.remove('hidden');
   elements.statusMessage.textContent = isZh 
     ? `正在召集智囊團分析 ${ticker} (${companyInfo.name})...` 
@@ -328,9 +327,8 @@ async function handleSummon() {
     const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
     await runGeminiDeliberation(ticker, selectedSages, state.financials);
   } catch (err) {
-    console.warn('Gemini Cloudflare Edge call skipped or error, running client simulation engine:', err);
-    const selectedSages = SAGES.filter(s => state.selectedSageIds.has(s.id));
-    await runSimulatedDeliberation(ticker, selectedSages, state.financials, companyInfo);
+    console.error('Google Gemini Deliberation Error:', err);
+    renderDeliberationError(err, ticker, companyInfo);
   } finally {
     state.isAnalyzing = false;
     elements.progressBarFill.style.width = '100%';
@@ -340,35 +338,51 @@ async function handleSummon() {
   }
 }
 
-// Deliberation via Google Gemini API through Cloudflare Worker
+// Deliberation via Google Gemini API through Cloudflare Pages Function
 async function runGeminiDeliberation(ticker, selectedSages, financials) {
   const isZh = state.language === 'zh';
-  elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行多視角思維鏈研判...' : 'Executing Chain of Thought deliberation via Google Gemini...';
+  elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行即時思維鏈研判...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...';
   elements.progressBarFill.style.width = '60%';
 
-  const response = await fetch('/api/analyze', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ticker,
-      sages: selectedSages.map(s => s.name),
-      financials,
-      language: state.language
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+  let response;
+  try {
+    response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticker,
+        sages: selectedSages.map(s => s.name),
+        financials,
+        language: state.language
+      })
+    });
+  } catch (networkErr) {
+    throw new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
   }
 
-  const rawData = await response.json();
+  const rawData = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errMsg = rawData.error || `HTTP ${response.status}: Failed to reach Google Gemini API`;
+    const err = new Error(errMsg);
+    err.status = response.status;
+    err.details = rawData.error;
+    throw err;
+  }
+
   let jsonOutput = rawData;
   if (typeof rawData === 'string') {
     try {
       jsonOutput = JSON.parse(rawData);
     } catch {
-      throw new Error('Could not parse JSON response');
+      throw new Error(isZh ? '無法解析 Gemini 回傳之結構化 JSON' : 'Could not parse structured JSON response from Gemini');
     }
+  }
+
+  if (jsonOutput.error) {
+    const err = new Error(jsonOutput.error);
+    err.status = response.status;
+    throw err;
   }
 
   renderFullAnalysis(jsonOutput, ticker);
@@ -416,7 +430,7 @@ function renderFullAnalysis(data, ticker) {
   });
 
   // Render Data Sources & Citations (including live Google Search web links and engine status)
-  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, data.isLiveGemini || true);
+  renderSourcesBadges(data.sources || data.portfolioManager?.sourcesCited, data.groundingWebLinks, true);
 
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
@@ -438,7 +452,7 @@ function renderFullAnalysis(data, ticker) {
 }
 
 // Render Data Sources Provenance Badges (with optional live web links & engine indicator)
-function renderSourcesBadges(customSources, webLinks, isLive = false) {
+function renderSourcesBadges(customSources, webLinks, isLive = true) {
   if (!elements.sourcesPillsContainer) return;
   elements.sourcesPillsContainer.innerHTML = '';
 
@@ -448,9 +462,8 @@ function renderSourcesBadges(customSources, webLinks, isLive = false) {
     enginePill.className = 'source-badge-pill engine-badge-live';
     enginePill.innerHTML = '✨ Live Google Gemini (Active)';
   } else {
-    enginePill.className = 'source-badge-pill engine-badge-sim';
-    enginePill.title = 'Configure GEMINI_API_KEY in Cloudflare Pages Environment Variables for Live LLM Deliberation';
-    enginePill.innerHTML = '⚡ Local Simulation Engine';
+    enginePill.className = 'source-badge-pill engine-badge-error';
+    enginePill.innerHTML = '⚠️ Gemini Offline';
   }
   elements.sourcesPillsContainer.appendChild(enginePill);
 
@@ -485,49 +498,74 @@ function renderSourcesBadges(customSources, webLinks, isLive = false) {
   });
 }
 
-
-// Built-in Intelligent Simulation Engine (CoT + Instant Demo)
-async function runSimulatedDeliberation(ticker, selectedSages, financials, companyInfo) {
+// Renders prominent, actionable error card when Gemini is unavailable
+function renderDeliberationError(err, ticker, companyInfo) {
   const isZh = state.language === 'zh';
-  const isNvda = ticker.includes('NVDA');
-  const isShop = ticker.includes('SHOP');
-  const isRy = ticker.includes('RY');
-  const isEnb = ticker.includes('ENB');
-  const isCsu = ticker.includes('CSU');
-  const isAapl = ticker.includes('AAPL');
-  const isTsla = ticker.includes('TSLA');
-  const isCanadian = companyInfo.isCanadian;
-
-  const flags = { isNvda, isShop, isRy, isEnb, isCsu, isAapl, isTsla, isCanadian };
-
   elements.sageCardsGrid.innerHTML = '';
-  const results = [];
 
-  for (const sage of selectedSages) {
-    const { signal, confidence, quote, chainOfThought } = generateSageVerdictWithCoT(sage.id, flags, isZh);
-    const evidence = getTitanEvidenceAndLink(sage.id, ticker, flags, isZh);
-    const item = {
-      sage,
-      signal,
-      confidence,
-      quote,
-      chainOfThought,
-      provenance: evidence.sourceName,
-      sourceName: evidence.sourceName,
-      sourceDataSnippet: evidence.sourceDataSnippet,
-      sourceUrl: evidence.sourceUrl
-    };
-    results.push(item);
-    renderMockupSageCard(item, isZh);
+  const isMissingKey = (err.status === 503 || (err.message && err.message.includes('GEMINI_API_KEY')));
+
+  const errorCard = document.createElement('div');
+  errorCard.className = 'deliberation-error-card';
+  errorCard.innerHTML = `
+    <div class="error-card-icon">${isMissingKey ? '🔑' : '⚠️'}</div>
+    <h3 class="error-card-title">
+      ${isMissingKey 
+        ? (isZh ? 'GEMINI_API_KEY 環境變數未配置' : 'GEMINI_API_KEY Required') 
+        : (isZh ? 'Google Gemini AI 研判連線失敗' : 'Google Gemini AI Deliberation Unavailable')}
+    </h3>
+    <p class="error-card-desc">
+      ${isMissingKey 
+        ? (isZh 
+            ? `TitanCouncil 採用 Google Gemini 原生即時運算。請在 Cloudflare Pages 後台設置 API Key 即可開啟即時多大師審議。`
+            : `TitanCouncil exclusively operates on live Google Gemini LLM. Please configure your API key in Cloudflare Pages to activate real-time council deliberation.`)
+        : (isZh 
+            ? `在對 ${ticker} 進行 AI 研判時遇到錯誤: <strong>${err.message || '未知錯誤'}</strong>`
+            : `Encountered an error while deliberating on ${ticker}: <strong>${err.message || 'Unknown network error'}</strong>`)}
+    </p>
+
+    ${isMissingKey ? `
+      <div class="error-card-steps">
+        <strong>${isZh ? '快速配置指南 (Cloudflare Pages):' : 'Setup Guide (Cloudflare Pages):'}</strong>
+        <ol>
+          <li>${isZh ? '前往' : 'Open'} <strong>Cloudflare Dashboard</strong> → <strong>Pages</strong> → <strong>titancouncil</strong></li>
+          <li>${isZh ? '點選' : 'Click'} <strong>Settings</strong> → <strong>Environment variables</strong></li>
+          <li>${isZh ? '新增變數名稱' : 'Add variable name'} <code>GEMINI_API_KEY</code> ${isZh ? '並填入您的 Google AI Studio 金鑰' : 'with your Google AI Studio key'}</li>
+          <li>${isZh ? '儲存並重新部署即可立即使用！' : 'Save and redeploy to activate!'}</li>
+        </ol>
+      </div>
+    ` : ''}
+
+    <button type="button" class="error-retry-btn">
+      🔄 ${isZh ? '重新嘗試連線研判' : 'Retry Deliberation'}
+    </button>
+  `;
+
+  const retryBtn = errorCard.querySelector('.error-retry-btn');
+  if (retryBtn) {
+    retryBtn.addEventListener('click', () => handleSummon());
   }
 
-  updatePortfolioManagerSidebar(results, ticker, flags, isZh);
-  renderSourcesBadges();
-  state.currentAnalysis = { ticker, companyInfo, flags, results };
+  elements.sageCardsGrid.appendChild(errorCard);
+
+  // Update Sidebar Status
+  elements.riskLevelText.textContent = isZh ? "等待 AI 研判" : "Awaiting AI";
+  elements.horizonValText.textContent = "-";
+  elements.entryZoneText.textContent = "-";
+  elements.stopLossText.textContent = "-";
+  elements.convictionValueText.textContent = isZh ? "未就緒" : "Unavailable";
+  elements.actionBadgeBox.textContent = isZh ? "狀態: 連線中斷" : "STATUS: UNAVAILABLE";
+
+  // Sidebar Sources Indicator
+  if (elements.sourcesPillsContainer) {
+    elements.sourcesPillsContainer.innerHTML = `
+      <span class="source-badge-pill engine-badge-error">⚠️ ${isMissingKey ? 'GEMINI_API_KEY Missing' : 'Gemini Offline'}</span>
+    `;
+  }
 }
 
 // Generates Titan-specific and stock-specific authentic data evidence snippets & links
-export function getTitanEvidenceAndLink(sageId, ticker, flags, isZh) {
+export function getTitanEvidenceAndLink(sageId, ticker, flags = {}, isZh = false) {
   const cleanTicker = ticker.replace(/^\$/, '').toUpperCase();
   const isCanadian = flags.isCanadian || cleanTicker.endsWith('.TO') || cleanTicker.endsWith('.V');
   const baseTse = cleanTicker.replace('.TO', '');
@@ -647,402 +685,9 @@ export function getTitanEvidenceAndLink(sageId, ticker, flags, isZh) {
   }
 }
 
-
-function generateSageVerdictWithCoT(sageId, flags, isZh) {
-  let signal = "NEUTRAL";
-  let confidence = 75;
-  let quote = "";
-  let chainOfThought = [];
-
-  switch (sageId) {
-    case 'buffett':
-      if (flags.isRy || flags.isEnb) {
-        signal = "BULLISH"; confidence = 88;
-        quote = isZh 
-          ? "加拿大銀行與管網具備特許經營權護城河，高股息現金流且資本回報率穩健，符合長期持有標準。"
-          : "Durable Canadian oligopoly moat. Strong dividend cash yields and disciplined leverage provide excellent margin of safety.";
-        chainOfThought = isZh ? [
-          "1. 能力圈檢驗：特許公用管線與銀行體系商業模式簡單，現金流可預測性極高。",
-          "2. 護城河與 ROE：監管護城河極深，ROE 持續 > 14%，股息分紅具備抗通膨定價權。",
-          "3. 安全邊際：當前估值處於歷史合理區間，提供超過 25% 的保守防守邊際。"
-        ] : [
-          "1. Circle of Competence: Regulated infrastructure & banking monopoly with highly predictable cash flows.",
-          "2. Moat & ROE: Sustainable franchise advantage with ROE > 14% and consistent shareholder yield.",
-          "3. Margin of Safety: Trading at conservative historical multiples with >25% downside buffer."
-        ];
-      } else if (flags.isNvda) {
-        signal = "NEUTRAL"; confidence = 82;
-        quote = isZh 
-          ? "卓越的晶片護城河與極高資本回報率，但當前乘數並未留下足夠的安全邊際。"
-          : "Exceptional CUDA moat and pricing power, but valuation multiples leave minimal margin of safety for owner earnings.";
-        chainOfThought = isZh ? [
-          "1. 能力圈檢驗：GPU 運算架構與軟體生態強大，但半導體具有天然硬體週期性。",
-          "2. 護城河與 ROE：CUDA 開發者生態構成深厚護城河，淨利潤率維持在極高水平。",
-          "3. 安全邊際：當前本益比未提供 25% 以上的保守安全邊際，建議耐心等待回檔。"
-        ] : [
-          "1. Circle of Competence: World-class AI hardware ecosystem, but cyclical demand peaks remain.",
-          "2. Moat & Returns: CUDA platform network creates tremendous owner earnings power.",
-          "3. Margin of Safety: Elevated valuation multiple compresses the conservative margin of safety to <15%."
-        ];
-      } else {
-        signal = "NEUTRAL"; confidence = 75;
-        quote = isZh 
-          ? "嚴格遵循能力圈原則：需要清晰的特許經營權護城河與至少 25% 的安全邊際。"
-          : "Strict circle of competence: requiring clear franchise moats and at least 25% margin of safety.";
-        chainOfThought = isZh ? [
-          "1. 業務評估：檢視商業模式是否具備持續定價權。",
-          "2. 資本配置：分析自由現金流與管理層誠信度。",
-          "3. 估值考量：嚴格要求 25% 以上的折價買點。"
-        ] : [
-          "1. Circle of Competence: Verify simple economics and sustainable competitive moat.",
-          "2. Capital Allocation: Inspect Owner Earnings conversion and honest management.",
-          "3. Valuation: Mandate minimum 25% discount to conservative intrinsic value."
-        ];
-      }
-      break;
-
-    case 'munger':
-      if (flags.isCsu) {
-        signal = "BULLISH"; confidence = 94;
-        quote = isZh 
-          ? "Constellation Software 是絕佳的多元思維模型範例：極高資本回報率加上精準的垂直軟體併購複利。"
-          : "Constellation Software is a textbook mental model winner: exceptional ROIC with programmatic VMS compounding.";
-        chainOfThought = isZh ? [
-          "1. 逆向思考：VMS 軟體黏性極高，客戶轉換成本巨大，破產風險趨近於零。",
-          "2. 綜效模型：分散式去中心化併購架構創造自體複利的 Lollapalooza 效應。",
-          "3. ROIC 評估：ROIC 長期維持在 20%+，Mark Leonard 的資本配置堪稱典範。"
-        ] : [
-          "1. Inversion: Vertical market software has high switching costs and near-zero churn vulnerability.",
-          "2. Lollapalooza Effect: Decentralized programmatic M&A engine reinforces compounding moat.",
-          "3. ROIC & Integrity: ROIC sustained >20% across decades under peerless stewardship."
-        ];
-      } else if (flags.isNvda) {
-        signal = "NEUTRAL"; confidence = 81;
-        quote = isZh 
-          ? "反過來想：什麼會殺死這家公司？硬體週期的波動不可忽視。偉大企業亦需合理價格。"
-          : "Invert: what kills this company? Hardware cycle concentration. A wonderful business, but priced for perfection.";
-        chainOfThought = isZh ? [
-          "1. 逆向思考：主要雲端巨頭客戶正在自研晶片，長期需求集中度存在肥尾風險。",
-          "2. 綜效模型：軟硬一體化具備強大定價權，但股價已完全反映完美預期。",
-          "3. 決策：好企業不等於好買點，等待市場狂熱消退。"
-        ] : [
-          "1. Inversion: Cloud hyperscalers developing custom ASICs; demand lumpiness will arrive.",
-          "2. Mental Models: Superb franchise and pricing power, but priced for absolute perfection.",
-          "3. Stance: Never pay excessive premiums during euphoric manic phases."
-        ];
-      } else {
-        signal = "NEUTRAL"; confidence = 72;
-        quote = isZh 
-          ? "避免盲目從眾。尋找具備不可替代品牌與強大定價權的超級企業。"
-          : "Avoid crowd mania. Look for irreplaceable franchises with strong pricing power.";
-        chainOfThought = isZh ? [
-          "1. 逆向推演：深入審查業務核心脆弱點與供應鏈瓶頸。",
-          "2. 多元模型：結合心理學、工程學與經濟學模型交叉驗證。",
-          "3. 紀律：寧願錯過，也不在缺乏定價優勢時追高。"
-        ] : [
-          "1. Invert: Identify hidden failure modes and capital allocation hazards.",
-          "2. Cross-Disciplinary: Apply microeconomics and behavioral misjudgment filters.",
-          "3. Stance: Maintain disciplined patience for obvious asymmetric bargains."
-        ];
-      }
-      break;
-
-    case 'burry':
-      if (flags.isEnb || flags.isRy) {
-        signal = "BULLISH"; confidence = 84;
-        quote = isZh 
-          ? "能源管網與加拿大銀行提供 6%-7% 的硬現金流收益率，EV/EBIT 處在合理區間，具備堅實防禦性。"
-          : "Canadian pipeline/banking infrastructure offers 6-7% real cash yields with protected volume franchises.";
-        chainOfThought = isZh ? [
-          "1. FCF 收益率：自由現金流收益率顯著高於無風險利率，下行空間受硬資產支撐。",
-          "2. 估值倍數：EV/EBIT 小於 9x，未被華爾街狂熱動量炒作。",
-          "3. 逆向勝率：在被忽視的實體資產中獲得扎實的現金回報。"
-        ] : [
-          "1. FCF Yield: Free cash flow yields >7% with real physical asset infrastructure backing.",
-          "2. Valuation Multiples: Low EV/EBIT multiples without momentum bubble premium.",
-          "3. Solvency: Long-term debt well amortized by contractual cash distributions."
-        ];
-      } else if (flags.isNvda || flags.isShop) {
-        signal = "BEARISH"; confidence = 88;
-        quote = isZh 
-          ? "估值乘數處於歷史高位，市場集中度過高隱藏了未來的需求懸崖，必須警惕下行風險。"
-          : "Unprecedented concentration and market mania reminiscent of previous bubbles. Proceed with extreme caution.";
-        chainOfThought = isZh ? [
-          "1. 歷史估值乘數：P/S 與 EV/EBIT 偏離長期均值 3 個標準差以上。",
-          "2. 需求懸崖：客戶前期資本支出超前透支，未來可能面臨消化週期的去庫存壓力。",
-          "3. 逆向做空信號：極高預期與極端擁擠持倉構成潛在回撤觸發點。"
-        ] : [
-          "1. Valuation Metrics: Multiples trade at 3+ standard deviations above historical mean.",
-          "2. Demand Cliffs: Hyperscaler capex front-loading risks severe hangover digestions.",
-          "3. Asymmetric Downside: Negative revision shocks will trigger sharp re-rating."
-        ];
-      } else {
-        signal = "BEARISH"; confidence = 78;
-        quote = isZh 
-          ? "在廢墟中尋找自由現金流收益率 >10% 的錯價資產，拒絕追逐高溢價動量股。"
-          : "Looking for mispriced assets with FCF yield > 10%. Refuse to pay premiums for momentum hype.";
-        chainOfThought = isZh ? [
-          "1. 數據挖掘：過濾 FCF/EV 與實質有形資產淨值。",
-          "2. 債務風險：排除高槓桿與股權稀釋嚴重的企業。",
-          "3. 結論：當前標的缺乏深層錯價折扣。"
-        ] : [
-          "1. Data Screening: Filter for unloved assets trading at steep discounts to tangible cash flows.",
-          "2. Solvency: Eliminate debt-heavy structures and excessive share-based dilution.",
-          "3. Stance: Strict contrarian value discipline."
-        ];
-      }
-      break;
-
-    case 'wood':
-      if (flags.isShop || flags.isNvda) {
-        signal = "BULLISH"; confidence = 95;
-        quote = isZh 
-          ? "Shopify 與輝達處於全球數位化商業與算力革命的核心，TAM（總潛在市場）呈指數級爆發。"
-          : "Shopify and NVIDIA are at the epicenter of exponential commerce and compute convergence. TAM expansion is massive.";
-        chainOfThought = isZh ? [
-          "1. 指數型 TAM：AI 代理人與全球電商技術融合，5 年潛在市場空間將擴大 10 倍。",
-          "2. 平台網路效應：開發者生態與商家基礎具備強大的贏家通吃自增強屬性。",
-          "3. 成長斜率：預期未來 5 年複合營收成長率 (CAGR) 維持在 25% 以上。"
-        ] : [
-          "1. Exponential TAM: Compute and agentic commerce convergence unlocks multi-trillion TAM.",
-          "2. Platform Network Effects: Deep developer and merchant lock-in ensures winner-take-most dominance.",
-          "3. 5-Yr CAGR: High conviction in sustained >25% secular revenue expansion."
-        ];
-      } else {
-        signal = "NEUTRAL"; confidence = 65;
-        quote = isZh 
-          ? "評估研發支出是否能催生贏家通吃的平台網路效應。"
-          : "Evaluating whether R&D creates winner-take-most platform network effects.";
-        chainOfThought = isZh ? [
-          "1. 技術顛覆性：審視產品是否面臨既有巨頭的快速同質化威脅。",
-          "2. 創新研發：計算研發資本產出與單位經濟模型擴張速度。",
-          "3. 結論：科技顛覆潛力尚需更多催化劑驗證。"
-        ] : [
-          "1. Disruption Horizon: Assess vulnerability to adjacent AI and platform breakthroughs.",
-          "2. R&D Efficiency: Measure technology adoption curve vs incumbent friction.",
-          "3. Stance: Selective focus on exponential convergent leaders."
-        ];
-      }
-      break;
-
-    case 'taleb':
-      if (flags.isRy || flags.isCsu) {
-        signal = "BULLISH"; confidence = 82;
-        quote = isZh 
-          ? "林迪效應（Lindy Effect）明顯：歷經百年危機洗禮依然穩健，具備極高的反脆弱性與下行防守力。"
-          : "Strong Lindy effect: proven resilience across century-scale crises with robust antifragility.";
-        chainOfThought = isZh ? [
-          "1. 反脆弱性：業務經受過多次宏觀崩盤考驗，危機過後市佔率不降反升。",
-          "2. 負向法 (Via Negativa)：剔除隱形槓桿與無切身利益之投機項目。",
-          "3. 林迪效應：存在時間越長，未來存續的預期壽命越長，黑天鵝下行風險受控。"
-        ] : [
-          "1. Antifragility: Proven resilience through macro downturns; emerges stronger from stress.",
-          "2. Via Negativa: Clean debt profiles without toxic hidden leverage derivatives.",
-          "3. Lindy Effect: Multi-decade survival history guarantees low fat-tail extinction risk."
-        ];
-      } else if (flags.isNvda || flags.isShop) {
-        signal = "BEARISH"; confidence = 79;
-        quote = isZh 
-          ? "系統存在隱形脆弱性：單點供應鏈與客戶集中度隱藏肥尾風險（Fat Tails），不可將平靜誤以為無風險。"
-          : "Fragility in the system is ignored. The distribution of returns has fat tails. High risk of negative black swan.";
-        chainOfThought = isZh ? [
-          "1. 肥尾風險：依賴台積電單一先進晶圓製造供應鏈與少數雲端巨頭採購，尾端脆弱性極高。",
-          "2. 凸性不足：股價已透支上行空間，黑天鵝事件下行跌幅可能呈現非線性重挫。",
-          "3. 切身涉險：市場過度外推線性增長，忽視了黑天鵝衝擊的破壞力。"
-        ] : [
-          "1. Tail Fragility: Single-fab geographic concentration and customer lumpiness create acute fat tails.",
-          "2. Negative Convexity: Asymmetric downside if geopolitical or supply shock materializes.",
-          "3. Risk Heuristic: Never confuse past calm with absence of systemic vulnerability."
-        ];
-      } else {
-        signal = "NEUTRAL"; confidence = 70;
-        quote = isZh 
-          ? "透過「否定法」剔除高槓桿與無切身利益關聯（No skin in the game）的企業。"
-          : "Apply via negativa: avoid excessive leverage and firms without insider skin in the game.";
-        chainOfThought = isZh ? [
-          "1. 負向過濾：檢視管理層持股比例與下行承擔機制。",
-          "2. 系統性壓力：測試承受 50% 宏觀需求驟降的存活能力。",
-          "3. 結論：維持中性防守觀察。"
-        ] : [
-          "1. Via Negativa: Scrutinize insider skin in the game and balance sheet buffer.",
-          "2. Stress Testing: Verify survival during acute 3-standard-deviation macro shocks.",
-          "3. Stance: Prioritize survival and convexity over speculative yield."
-        ];
-      }
-      break;
-
-    case 'graham':
-      if (flags.isRy || flags.isEnb) {
-        signal = "BULLISH"; confidence = 80;
-        quote = isZh 
-          ? "P/E 位於 10-12x 區間，股息率 >6%，具備防禦型投資者的安全邊際。"
-          : "P/E in 10-12x range with >6% dividend yield meets defensive investor criteria.";
-        chainOfThought = isZh ? [
-          "1. 資產負債表實力：流動比率穩健，長期獲利記錄超過 10 年無中斷。",
-          "2. 葛拉漢指數：股價相對於每股淨值與 EPS 乘積處於合理防守區間。",
-          "3. 安全邊際：高股息回報為本金提供實質下行保護。"
-        ] : [
-          "1. Balance Sheet: Over 10 consecutive years of positive earnings with strong solvency.",
-          "2. Graham Number: P/E * P/B complies with defensive benchmark limits.",
-          "3. Margin of Safety: Substantial recurring dividend yield protects principal."
-        ];
-      } else {
-        signal = "BEARISH"; confidence = 89;
-        quote = isZh 
-          ? "股價顯著高於葛拉漢指數（Graham Number），缺乏傳統清算與淨流動資產（Net-Net）保護。"
-          : "Price trades significantly above Graham Number and liquidation value. Margin of safety is missing.";
-        chainOfThought = isZh ? [
-          "1. 葛拉漢測試：股價遠超 √(22.5 * EPS * BVPS)，市價主要由未來成長溢價構成。",
-          "2. 淨流動資產：缺乏 Net-Net（NCAV）清算價值支撐。",
-          "3. 裁決：防禦型投資者應嚴守估值紀律，拒絕支付成長溢價。"
-        ] : [
-          "1. Graham Metrics: Price vastly exceeds Graham Number √(22.5 * EPS * BVPS).",
-          "2. Asset Backing: Zero Net-Net (NCAV) discount protection available.",
-          "3. Verdict: Fails conservative enterprise value safety tests."
-        ];
-      }
-      break;
-
-    case 'lynch':
-      signal = (flags.isShop || flags.isNvda || flags.isCsu) ? "BULLISH" : "NEUTRAL";
-      confidence = 85;
-      quote = isZh 
-        ? "典型的快速成長股或穩健型支柱企業，商業邏輯簡單明瞭，各行各業都離不開它的服務。"
-        : "Fast grower or stalwart category. Everyday understandability with multi-year organic growth runway.";
-      chainOfThought = isZh ? [
-        "1. 分類定位：屬於典型的快速成長型（Fast Grower）或中流砥柱（Stalwart）企業。",
-        "2. PEG 估值：將獲利成長率與本益比對標，PEG 在長期產能釋放後仍具吸引力。",
-        "3. 實地驗證：終端客戶需求極其強勁，產品可解釋性高。"
-      ] : [
-        "1. Classification: Fast Grower category with continuous product-led TAM expansion.",
-        "2. PEG Metric: PEG adjusted for sustainable earnings acceleration is attractive.",
-        "3. Understandability: Clear product superiority with everyday enterprise demand."
-      ];
-      break;
-
-    case 'druckenmiller':
-      signal = "BULLISH"; confidence = 84;
-      quote = isZh 
-        ? "宏觀流動性與盈利預期持續上修，非對稱回報比顯著，順勢而為。"
-        : "Secular liquidity and uninterrupted upward estimate revisions create compelling asymmetric momentum.";
-      chainOfThought = isZh ? [
-        "1. 宏觀順風：央行利率週期與企業資本支出浪潮形成強大流動性推動力。",
-        "2. 預期上修：華爾街分析師每季持續上調 EPS 預測，正向驚喜動能強勁。",
-        "3. 3:1 非對稱比：順應大趨勢重拳出擊，嚴設移動停損。"
-      ] : [
-        "1. Macro Tailwind: Unstoppable secular liquidity and capex investment supercycles.",
-        "2. Estimate Revisions: Persistent upward earnings surprises from Wall Street consensus.",
-        "3. Asymmetric Setup: Favorable 3:1 reward-to-risk ratio with disciplined stop-loss execution."
-      ];
-      break;
-
-    case 'ackman':
-      signal = "BULLISH"; confidence = 78;
-      quote = isZh 
-        ? "行業龍頭地位不可動搖，現金流極為充沛且具有對抗通膨的強大調價能力。"
-        : "Dominant market leadership with predictable cash generation and strong inflation-hedging pricing power.";
-      chainOfThought = isZh ? [
-        "1. 龍頭地位：在細分市場穩居第 1 或第 2 名，具備極高准入門檻。",
-        "2. 現金流機制：商業模式極度清晰，自由現金流具備抗通膨定價能力。",
-        "3. 催化劑：營運槓桿與定價策略仍有進一步釋放股東價值的空間。"
-      ] : [
-        "1. Dominance: Absolute #1 market position in an indispensable global niche.",
-        "2. FCF Engine: Simple, predictable cash generation with natural inflation hedging.",
-        "3. Catalysts: Operational efficiency levers can drive further multiple re-rating."
-      ];
-      break;
-
-    case 'fisher':
-      signal = "BULLISH"; confidence = 82;
-      quote = isZh 
-        ? "草根調研（Scuttlebutt）確認其客戶黏性極高，研發管線產出比卓越，管理層深具遠見。"
-        : "Scuttlebutt research confirms extraordinary R&D pipeline and unmatched customer stickiness.";
-      chainOfThought = isZh ? [
-        "1. 草根調研 (Scuttlebutt)：與供應鏈和客戶訪談確認產品競爭力難以被短期超越。",
-        "2. 研發產出效率：每投入 1 美元研發經費帶來的專利與商業化回報高於同業 50%。",
-        "3. 團隊深度：工程師文化深厚，管理層注重 5-10 年長線技術佈局。"
-      ] : [
-        "1. Scuttlebutt: Channel checks confirm unparalleled customer retention and ecosystem lock-in.",
-        "2. R&D Productivity: Industry-leading revenue generated per dollar of R&D spent.",
-        "3. Management Vision: Forward-thinking leadership investing for the next decade."
-      ];
-      break;
-
-    case 'pabrai':
-      if (flags.isRy || flags.isEnb) {
-        signal = "BULLISH"; confidence = 82;
-        quote = isZh 
-          ? "符合低風險原則（Dhandho）：下行空間極其有限，股息收益確鑿。"
-          : "Passes Dhandho test: limited downside risk with reliable cash yield stream.";
-        chainOfThought = isZh ? [
-          "1. Dhandho 核心法則：「正面我贏，反面我輸不多」——下行風險受到實體資產鎖定。",
-          "2. 50% 安全邊際：保守現金流折現下依然具備極高本金保護。",
-          "3. 複製大師：頂級主權基金與價值型大師持續重倉配置。"
-        ] : [
-          "1. Dhandho Framework: 'Heads I win, tails I don't lose much'—downside floor is secure.",
-          "2. Capital Protection: Predictable contractual income streams limit permanent impairment risk.",
-          "3. Superinvestor Cloning: Validated by top institutional compounding allocators."
-        ];
-      } else {
-        signal = "BEARISH"; confidence = 85;
-        quote = isZh 
-          ? "當前估值未能提供 50% 的安全邊際，耐心等待市場因短期不確定性產生錯殺。"
-          : "Fails the Dhandho rule: 'Heads I win, tails I lose a lot' at elevated multiples.";
-        chainOfThought = isZh ? [
-          "1. Dhandho 檢驗：在高倍數下，一旦成長不及預期下行虧損巨大。",
-          "2. 安全邊際不足：未能達到 50% 的超額安全邊際門檻。",
-          "3. 決策：保持耐心，將現金留在帳上等待市場錯殺。"
-        ] : [
-          "1. Risk/Reward: At extreme multiples, downside risk in a multiple compression is too severe.",
-          "2. Margin of Safety: Fails the mandatory 50% Dhandho discount threshold.",
-          "3. Stance: Wait patiently for temporary panic to misprice the asset."
-        ];
-      }
-      break;
-
-    case 'damodaran':
-      signal = "NEUTRAL"; confidence = 78;
-      quote = isZh 
-        ? "現金流折現（DCF）模型要求未來十年維持高速複合增長才能支撐當前市值，故事需與數字謹慎校準。"
-        : "DCF valuation narrative requires sustained CAGR to justify market cap. Story must align with rigorous numbers.";
-      chainOfThought = isZh ? [
-        "1. 故事轉化為數字：將 AI / 軟體市場爆發敘事轉化為具體的 10 年營收 CAGR 與終端利潤率。",
-        "2. WACC 與再投資：加權平均資本成本設定在 8.5%，再投資率需保持在 25% 以上。",
-        "3. 內在價值區間：當前市價處於內在 DCF 估值區間的高位，定價偏向樂觀。"
-      ] : [
-        "1. Narrative to Numbers: Translate optimistic growth story into concrete 10-year revenue CAGR and operating margins.",
-        "2. WACC & Reinvestment: Apply realistic cost of capital (8.5%) and reinvestment rate to sustain growth.",
-        "3. Intrinsic Band: Current trading price sits at the upper boundary of intrinsic DCF valuation range."
-      ];
-      break;
-
-    case 'jhunjhunwala':
-      signal = "BULLISH"; confidence = 85;
-      quote = isZh 
-        ? "資本回報率（ROCE）維持在 20%+ 的財富複利機器。看準大勢，坐穩拿住。"
-        : "Generational wealth compounding machine with ROCE > 20%. Be right and sit tight.";
-      chainOfThought = isZh ? [
-        "1. 國運與大勢：行業處於全球現代化與數位化改造的大浪潮前端。",
-        "2. ROCE 複利指標：資本回報率超越 20%，每留存 1 美元利潤能創造數倍市場價值。",
-        "3. 長期信念：忽略短期季度雜音，以 5-10 年視角享受巨型複利。"
-      ] : [
-        "1. Secular Megatrend: Poised at the forefront of global technological modernization.",
-        "2. ROCE Compounding: High ROCE (>20%) turns retained earnings into substantial shareholder wealth.",
-        "3. Conviction: Ignore quarterly noise and sit tight for multi-year compounding."
-      ];
-      break;
-  }
-
-  // Dynamic realistic fluctuation (+/- 1-3%) across consecutive runs
-  const variance = Math.floor((Math.random() * 7) - 3);
-  const finalConfidence = Math.min(98, Math.max(50, confidence + variance));
-
-  return { signal, confidence: finalConfidence, quote, chainOfThought };
-}
-
-
 // Render individual Sage Card with interactive CoT accordion
 function renderMockupSageCard(item, isZh) {
+
   const { sage, signal, confidence, quote, chainOfThought } = item;
   const signalLower = signal.toLowerCase();
   const displayName = isZh ? sage.nameZh : sage.name;
