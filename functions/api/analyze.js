@@ -48,8 +48,10 @@ function checkRateLimit(clientIp) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+  const url = new URL(request.url);
 
   // DDoS Mitigation: Verify Client IP & Rate Limit
+
   const clientIp = request.headers.get('cf-connecting-ip') || 
                    request.headers.get('x-real-ip') || 
                    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
