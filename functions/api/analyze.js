@@ -1,5 +1,5 @@
 // Cloudflare Pages Function: /api/analyze
-// Executes TitanCouncil Deliberation powered by Google Gemini with Live Google Search Grounding
+// Executes TitanCouncil Deliberation powered by Google Gemini with Live Google Search Grounding & Titan-Specific Source Citations
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -16,41 +16,44 @@ export async function onRequestPost(context) {
     }
 
     const isZh = language === 'zh' || language === 'zh-CN' || language === 'zh-TW';
+    const isCanadian = ticker.toUpperCase().endsWith('.TO') || ticker.toUpperCase().endsWith('.V');
 
     const systemPrompt = `You are the TitanCouncil Coordinator.
 Conduct a rigorous multi-perspective stock deliberation on: "${ticker}".
-Use live Google Search to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, and balance sheet data.
+Use live Google Search to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
 
 User-Provided Financial Notes: ${financials || 'None. Ground your deliberation on live Google Search results, SEC EDGAR 10-K/10-Q filings, and SEDAR+ (for Canadian TSE .TO tickers).'}.
 Output Language: ${isZh ? 'Traditional Chinese (繁體中文)' : 'English'}.
 
-SAGE PHILOSOPHIES & MANDATORY CHAIN-OF-THOUGHT (CoT) RULES:
-1. Warren Buffett: Circle of Competence -> Durable Moat & Pricing Power -> ROE > 15% & Owner Earnings -> Margin of Safety (> 25%).
-2. Charlie Munger: Inversion (What kills it?) -> Lollapalooza Mental Models -> ROIC > 15% -> Management Integrity.
-3. Benjamin Graham: Balance Sheet Defense (Current Ratio > 2.0, Debt vs NCAV) -> Graham Number -> Margin of Safety vs Book Value.
-4. Peter Lynch: Understandable Business -> PEG Ratio (< 1.0) & Growth Runway -> Category (Fast Grower/Stalwart/Turnaround).
-5. Michael Burry: FCF Yield (> 10% on EV) -> EV/EBIT (< 8x) -> Contrarian/Distressed Sentiment -> Downside Moat.
-6. Cathie Wood: Exponential TAM Expansion -> 5-Yr Revenue CAGR (> 25%) -> Technology Convergence & Platform Network Effects.
-7. Stanley Druckenmiller: Macro Liquidity & Sector Tailwinds -> Upward Earnings Revisions -> 3:1 Asymmetric Risk/Reward Setup.
-8. Bill Ackman: Simple Predictable Cash Engine -> Dominant Market Share (#1 or #2) -> Operational Levers -> Downside Protection.
-9. Phil Fisher: 15-Point Scuttlebutt Research -> R&D Commercialization Efficiency -> Sales/Distribution Dominance -> Management Depth.
-10. Nassim Taleb: Antifragility vs Systemic Fragility -> Via Negativa (Debt/Concentration) -> Skin in the Game -> Lindy Effect -> Fat-Tail Risks.
-11. Mohnish Pabrai: Dhandho Framework ("Heads I win, tails I don't lose much") -> Downside Protection First -> 50% Margin of Safety.
-12. Aswath Damodaran: Narrative to Numbers Bridge -> 10-Yr Revenue CAGR & Operating Margins -> Reinvestment & WACC -> Intrinsic DCF Fair Value.
-13. Rakesh Jhunjhunwala: Secular Growth Tailwinds -> ROCE > 20% Compounding Engine -> Holding Conviction.
+CRITICAL REQUIREMENTS FOR TITAN-SPECIFIC EVIDENCE & SOURCES:
+- Each Titan MUST cite their own distinct, authentic data source and concrete quantitative data snippet relevant to their methodology.
+  Examples:
+  * Buffett: SEC 10-K Owner Earnings & ROE Breakdown (e.g., "TTM Net Income $X, FCF $Y, ROE Z%, Debt/Equity D")
+  * Munger: ROIC & Capital Allocation Proxy (e.g., "5-yr avg ROIC X%, Pricing Power Gross Margin Y%")
+  * Graham: Balance Sheet Liquidation & Current Ratio (e.g., "Current Ratio X, Net Current Assets vs Debt Y, Graham Number $Z")
+  * Burry: FCF Yield & Short Interest / EV Multiples (e.g., "FCF/EV Yield X%, EV/EBIT Yx, Short Interest Z%")
+  * Wood: 5-Yr Exponential TAM & Innovation R&D (e.g., "AI/Cloud TAM $X Trillion, 5-yr Revenue CAGR Y%, R&D spend $Z")
+  * Druckenmiller: Macro Liquidity & Earnings Revisions (e.g., "Forward EPS revisions +X% over last 90 days, Liquidity tailwinds")
+  * Ackman: 13F Dominant Franchise & Margin Levers (e.g., "Market share #1 at X%, Operating Margin Y%, Catalyst potential")
+  * Fisher: Scuttlebutt & R&D Commercialization (e.g., "R&D as % of Sales X%, Customer retention rate Y%")
+  * Taleb: Debt Maturity & Antifragility Solvency (e.g., "Total Debt $X vs Cash $Y, Single-supplier concentration risk Z")
+  * Pabrai: Dhandho 50% Margin of Safety Screen (e.g., "Downside worst-case floor $X vs current market price $Y")
+  * Damodaran: NYU Stern DCF Valuation & Cost of Capital (e.g., "WACC X%, 10-yr CAGR Y%, Intrinsic DCF value band $Z")
+  * Jhunjhunwala: ROCE & Long-Term Compounding (e.g., "ROCE X%, Domestic market penetration growth Y%")
+  * Canadian (.TO) stocks: Cite SEDAR+ Official Disclosures and TSX Financial Data.
 
 Respond ONLY in valid JSON matching this schema:
 {
   "ticker": "${ticker}",
   "livePrice": "$XXX.XX",
-  "provenanceSummary": "Live Google Search & SEC/SEDAR+ Grounded Analysis",
+  "provenanceSummary": "Live Google Search & SEC EDGAR / SEDAR+ Grounded Analysis",
   "sources": [
     "Google Finance (Real-Time Price & Multiples)",
-    "SEC EDGAR 10-K / 10-Q Quarterly Filings",
-    "SEDAR+ Regulatory Filings (Canada TSX)",
-    "TitanCouncil Codified Valuation Models"
+    "SEC EDGAR 10-K / 10-Q Filings",
+    "SEDAR+ Regulatory Disclosures (Canada TSX)",
+    "NYU Stern Corporate Valuation Database"
   ],
   "verdicts": [
     {
@@ -58,7 +61,9 @@ Respond ONLY in valid JSON matching this schema:
       "sageName": "Warren Buffett",
       "signal": "BULLISH" | "BEARISH" | "NEUTRAL",
       "confidence": 85,
-      "provenance": "SEC 10-K & Live Web Data",
+      "sourceName": "SEC EDGAR 10-K (Owner Earnings & ROE)",
+      "sourceDataSnippet": "Actual numbers quoted (e.g. 2024 Revenue $96.3B, ROE 115%, FCF $53.8B, Cash $34.8B)",
+      "sourceUrl": "https://www.google.com/finance/quote/${ticker.replace('.TO', '')}",
       "quote": "1-2 sentence core verdict in authentic voice",
       "chainOfThought": [
         "1. Competence & Franchise: [1 sentence analysis]",
@@ -111,7 +116,7 @@ Respond ONLY in valid JSON matching this schema:
         {
           role: "user",
           parts: [
-            { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} current financial stats and perform full deliberation. Return strict JSON.` }
+            { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
           ]
         }
       ],
@@ -126,14 +131,14 @@ Respond ONLY in valid JSON matching this schema:
       body: JSON.stringify(geminiPayload)
     });
 
-    // Fallback if googleSearch tool format is rejected by specific model version
+    // Fallback if googleSearch tool is unavailable
     if (!res.ok) {
       const fallbackPayload = {
         contents: [
           {
             role: "user",
             parts: [
-              { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker}. Return strict JSON.` }
+              { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
             ]
           }
         ],
