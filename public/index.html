@@ -129,13 +129,19 @@
           <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
         </div>
 
-        <!-- Deliberation Progress Bar -->
+        <!-- Deliberation Progress Bar & Cancel Button -->
         <div class="deliberation-progress hidden" id="deliberationProgress">
           <div class="progress-bar-track">
             <div class="progress-bar-fill" id="progressBarFill"></div>
           </div>
-          <span class="progress-status-text" id="statusMessage">Summoning council via Google Gemini...</span>
+          <div class="progress-status-row">
+            <span class="progress-status-text" id="statusMessage">Summoning council via Google Gemini...</span>
+            <button type="button" class="cancel-deliberation-btn hidden" id="cancelDeliberationBtn" title="Stop deliberation and cancel retries">
+              ⏹️ <span id="cancelBtnLabel">Stop Retrying</span>
+            </button>
+          </div>
         </div>
+
 
         <!-- 2-Column Grid of Sage Cards -->
         <div class="sage-cards-grid" id="sageCardsGrid">

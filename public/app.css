@@ -433,10 +433,43 @@ body {
   transition: width 0.3s ease;
 }
 
-.progress-status-text {
-  font-size: 0.75rem;
-  color: #38bdf8;
+.progress-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
+
+.progress-status-text {
+  font-size: 0.78rem;
+  color: #38bdf8;
+  font-weight: 500;
+  flex: 1;
+}
+
+.cancel-deliberation-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cancel-deliberation-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
 
 /* 2-Column Grid of Sages Cards */
 .sage-cards-grid {

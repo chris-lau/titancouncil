@@ -9,6 +9,7 @@ const state = {
   instructions: '',
   currentAnalysis: null,
   isAnalyzing: false,
+  abortController: null,
   activeProfileId: 'buffett'
 };
 
@@ -30,8 +31,11 @@ const elements = {
   councilTallyText: document.getElementById('councilTallyText'),
   deliberationProgress: document.getElementById('deliberationProgress'),
   statusMessage: document.getElementById('statusMessage'),
+  cancelDeliberationBtn: document.getElementById('cancelDeliberationBtn'),
+  cancelBtnLabel: document.getElementById('cancelBtnLabel'),
   progressBarFill: document.getElementById('progressBarFill'),
   sageCardsGrid: document.getElementById('sageCardsGrid'),
+
   pmAwaitingCard: document.getElementById('pmAwaitingCard'),
   pmVerdictPanel: document.getElementById('pmVerdictPanel'),
   i18nPmAwaitingTitle: document.getElementById('i18nPmAwaitingTitle'),
@@ -131,9 +135,27 @@ function attachEventListeners() {
     });
   });
 
+  // Cancel Deliberation & Stop Retrying Button
+  if (elements.cancelDeliberationBtn) {
+    elements.cancelDeliberationBtn.addEventListener('click', () => {
+      if (state.abortController) {
+        state.abortController.abort();
+      }
+      state.isAnalyzing = false;
+      elements.summonBtn.disabled = false;
+      elements.summonBtn.style.opacity = '1';
+      elements.deliberationProgress.classList.add('hidden');
+      elements.cancelDeliberationBtn.classList.add('hidden');
+      if (!state.currentAnalysis) {
+        renderWelcomeState();
+      }
+    });
+  }
+
   // Language Toggle Button (EN <-> 中文)
   elements.langToggleBtn.addEventListener('click', () => {
     const nextLang = state.language === 'en' ? 'zh' : 'en';
+
     setLanguage(nextLang);
   });
 
@@ -319,9 +341,12 @@ async function handleSummon() {
 
   state.ticker = ticker;
   state.instructions = elements.instructionsInput ? elements.instructionsInput.value.trim() : '';
+
   state.isAnalyzing = true;
+  state.abortController = new AbortController();
   elements.summonBtn.disabled = true;
   elements.summonBtn.style.opacity = '0.7';
+  if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
 
   elements.headerCompanyName.textContent = `${companyInfo.name} (${companyInfo.currency})`;
   
@@ -347,16 +372,20 @@ async function handleSummon() {
   // Render instant mobile skeleton cards while Gemini processes
   renderSkeletonCards(selectedSages);
 
-
   try {
     await runGeminiDeliberation(ticker, selectedSages, state.instructions);
   } catch (err) {
+    if (err.name === 'AbortError' || state.abortController?.signal?.aborted) {
+      console.log('Deliberation aborted by user');
+      return;
+    }
     console.error('Google Gemini Deliberation Error:', err);
     renderDeliberationError(err, ticker, companyInfo);
   } finally {
     state.isAnalyzing = false;
     elements.summonBtn.disabled = false;
     elements.summonBtn.style.opacity = '1';
+    if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
     elements.progressBarFill.style.width = '100%';
     setTimeout(() => {
       elements.deliberationProgress.classList.add('hidden');
@@ -417,7 +446,6 @@ function renderWelcomeState() {
   }
 }
 
-
 // Render Instant Skeleton Placeholders during AI Deliberation
 function renderSkeletonCards(selectedSages) {
   elements.sageCardsGrid.innerHTML = '';
@@ -441,59 +469,102 @@ function renderSkeletonCards(selectedSages) {
 }
 
 
-// Deliberation via Google Gemini API through Cloudflare Pages Function
+// Deliberation via Google Gemini API through Cloudflare Pages Function with Transparent Retry Notifications
 async function runGeminiDeliberation(ticker, selectedSages, instructions) {
   const isZh = state.language === 'zh';
   elements.statusMessage.textContent = isZh ? '正在透過 Google Gemini 執行即時思維鏈研判...' : 'Executing real-time Chain of Thought deliberation via Google Gemini...';
   elements.progressBarFill.style.width = '60%';
 
-  let response;
-  try {
-    response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticker,
-        sages: selectedSages.map(s => s.name),
-        instructions,
-        language: state.language
-      })
-    });
-  } catch (networkErr) {
-    throw new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
-  }
+  const MAX_RETRIES = 3;
+  let lastError = null;
 
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    if (state.abortController?.signal?.aborted) return;
 
-  const rawData = await response.json().catch(() => ({}));
+    if (attempt > 1) {
+      if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.remove('hidden');
+      elements.statusMessage.textContent = isZh 
+        ? `⏳ Gemini 伺服器繁忙（高負載），正在自動重試 (第 ${attempt}/${MAX_RETRIES} 次)...` 
+        : `⏳ Gemini is busy (high demand). Retrying deliberation (Attempt ${attempt}/${MAX_RETRIES})...`;
+      elements.progressBarFill.style.width = `${40 + attempt * 18}%`;
 
-  if (!response.ok) {
-    const errMsg = rawData.error || `HTTP ${response.status}: Failed to reach Google Gemini API`;
-    const err = new Error(errMsg);
-    err.status = response.status;
-    err.details = rawData.error;
-    throw err;
-  }
+      // Wait 2.2s before retry with abort awareness
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 2200);
+        state.abortController?.signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
 
-  let jsonOutput = rawData;
-  if (typeof rawData === 'string') {
-    try {
-      jsonOutput = JSON.parse(rawData);
-    } catch {
-      throw new Error(isZh ? '無法解析 Gemini 回傳之結構化 JSON' : 'Could not parse structured JSON response from Gemini');
+      if (state.abortController?.signal?.aborted) return;
     }
+
+    let response;
+    try {
+      response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: state.abortController?.signal,
+        body: JSON.stringify({
+          ticker,
+          sages: selectedSages.map(s => s.name),
+          instructions,
+          language: state.language
+        })
+      });
+    } catch (networkErr) {
+      if (state.abortController?.signal?.aborted) return;
+      lastError = new Error(isZh ? '網路連線失敗，無法連接至後端 API' : 'Network error: Failed to reach backend API endpoint');
+      continue;
+    }
+
+    const rawData = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errMsg = rawData.error || `HTTP ${response.status}: Failed to reach Google Gemini API`;
+      const isHighDemand = response.status === 503 || response.status === 429 || errMsg.toLowerCase().includes('high demand') || errMsg.toLowerCase().includes('busy');
+      
+      const err = new Error(errMsg);
+      err.status = response.status;
+      err.details = rawData.error;
+      lastError = err;
+
+      if (isHighDemand && attempt < MAX_RETRIES) {
+        // Continue loop to retry
+        continue;
+      }
+      throw err;
+    }
+
+    let jsonOutput = rawData;
+    if (typeof rawData === 'string') {
+      try {
+        jsonOutput = JSON.parse(rawData);
+      } catch {
+        throw new Error(isZh ? '無法解析 Gemini 回傳之結構化 JSON' : 'Could not parse structured JSON response from Gemini');
+      }
+    }
+
+    if (jsonOutput.error) {
+      const err = new Error(jsonOutput.error);
+      err.status = response.status;
+      throw err;
+    }
+
+    if (elements.cancelDeliberationBtn) elements.cancelDeliberationBtn.classList.add('hidden');
+    renderFullAnalysis(jsonOutput, ticker);
+    return;
   }
 
-  if (jsonOutput.error) {
-    const err = new Error(jsonOutput.error);
-    err.status = response.status;
-    throw err;
+  if (lastError && !state.abortController?.signal?.aborted) {
+    throw lastError;
   }
-
-  renderFullAnalysis(jsonOutput, ticker);
 }
 
 // Render Structured JSON Output into Dashboard UI
 function renderFullAnalysis(data, ticker) {
+
   const isZh = state.language === 'zh';
   elements.sageCardsGrid.innerHTML = '';
 
