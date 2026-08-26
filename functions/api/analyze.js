@@ -191,60 +191,83 @@ Respond ONLY in valid JSON matching this schema:
       });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+    const CANDIDATE_MODELS = [
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-pro'
+    ];
 
-    // Payload with Google Search Grounding Tool
-    const geminiPayload = {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
-          ]
-        }
-      ],
-      tools: [
-        { googleSearch: {} }
-      ]
-    };
+    let geminiData = null;
+    let lastError = null;
 
-    let res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiPayload)
-    });
+    for (const modelName of CANDIDATE_MODELS) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
 
-    // Fallback if googleSearch tool is unavailable
-    if (!res.ok) {
-      const fallbackPayload = {
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+      // 1. Try with Google Search Grounding Tool
+      try {
+        let res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: `${systemPrompt}\n\nExecute live Google search for ${ticker} actual financial figures and execute deliberation with explicit data snippets and source links. Return strict JSON.` }
+                ]
+              }
+            ],
+            tools: [
+              { googleSearch: {} }
             ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.7
+          })
+        });
+
+        if (res.ok) {
+          geminiData = await res.json();
+          break;
         }
-      };
 
-      res = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fallbackPayload)
-      });
+        // 2. Fallback: Pure JSON Generation without search tool
+        res = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: `${systemPrompt}\n\nExecute detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.7
+            }
+          })
+        });
 
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`Gemini API error [${res.status}]: ${errBody}`);
+        if (res.ok) {
+          geminiData = await res.json();
+          break;
+        }
+
+        const errText = await res.text();
+        lastError = new Error(`Model ${modelName} returned [${res.status}]: ${errText}`);
+      } catch (e) {
+        lastError = e;
       }
     }
 
-    const geminiData = await res.json();
+    if (!geminiData) {
+      throw lastError || new Error('All Gemini candidate models failed to respond.');
+    }
+
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
     
     // Extract JSON object from potential markdown fences
     let parsedJson = {};
