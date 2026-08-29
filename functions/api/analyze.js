@@ -58,32 +58,60 @@ async function getYahooSession(ua) {
   try {
     const cRes = await fetch('https://fc.yahoo.com', {
       headers: { 'User-Agent': ua },
-      signal: AbortSignal.timeout(3500)
+      signal: AbortSignal.timeout(1500)
     });
     const rawCookie = cRes.headers.get('set-cookie');
     if (!rawCookie) return null;
     const cookie = rawCookie.split(';')[0];
 
-    // Try query2 first, fall back to query1
-    for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
-      try {
-        const crumbRes = await fetch(`https://${host}/v1/test/getcrumb`, {
-          headers: { 'User-Agent': ua, 'Cookie': cookie },
-          signal: AbortSignal.timeout(3500)
-        });
-        if (crumbRes.ok) {
-          const crumb = (await crumbRes.text()).trim();
-          if (cookie && crumb && !crumb.includes('<') && !crumb.includes('{')) {
-            cachedYahooSession = { cookie, crumb, expires: now + 3600000 }; // 1 hour cache
-            return cachedYahooSession;
-          }
-        }
-      } catch (e) {
-        // Continue to next host
+    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { 'User-Agent': ua, 'Cookie': cookie },
+      signal: AbortSignal.timeout(1500)
+    });
+    if (crumbRes.ok) {
+      const crumb = (await crumbRes.text()).trim();
+      if (cookie && crumb && !crumb.includes('<') && !crumb.includes('{')) {
+        cachedYahooSession = { cookie, crumb, expires: now + 3600000 }; // 1 hour cache
+        return cachedYahooSession;
       }
     }
   } catch (e) {
-    // Network / timeout
+    // Fail fast
+  }
+  return null;
+}
+
+// Secondary live dynamic market feed (100% live from Google Finance; no static defaults)
+async function fetchGoogleFinanceMetrics(ticker) {
+  const isCanadian = ticker.endsWith('.TO');
+  const baseTicker = ticker.replace(/\.TO$/i, '');
+  const exchanges = isCanadian ? ['TSE'] : ['NASDAQ', 'NYSE'];
+
+  for (const ex of exchanges) {
+    try {
+      const url = `https://www.google.com/finance/quote/${baseTicker}:${ex}`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        signal: AbortSignal.timeout(2000)
+      });
+      if (!res.ok) continue;
+      const html = await res.text();
+      const peMatch = html.match(/P\/E ratio<\/div><div[^>]*>([0-9.,]+)<\/div>/i);
+      const mcapMatch = html.match(/Market cap<\/div><div[^>]*>([0-9.,]+)\s*([TBMK]?)<\/div>/i);
+      if (peMatch) {
+        let marketCapB = null;
+        if (mcapMatch) {
+          const num = parseFloat(mcapMatch[1].replace(/,/g, ''));
+          const unit = mcapMatch[2];
+          marketCapB = unit === 'T' ? num * 1000 : (unit === 'M' ? num / 1000 : num);
+        }
+        return {
+          peRatio: parseFloat(peMatch[1].replace(/,/g, '')),
+          marketCapB,
+          exchange: ex
+        };
+      }
+    } catch (e) {}
   }
   return null;
 }
@@ -97,10 +125,10 @@ async function fetchMarketDataBundle(rawTicker) {
   let bundle = null;
 
   try {
-    // 1. Fetch real-time price quote from Yahoo chart endpoint (fast, resilient, no crumb required)
+    // 1. Fetch real-time price quote from Yahoo chart endpoint (fast, resilient, ~200ms)
     const quoteRes = await fetch(`https://query2.finance.yahoo.com/v8/finance/chart/${cleanTicker}?interval=1d&range=1d`, {
       headers: { 'User-Agent': ua },
-      signal: AbortSignal.timeout(4500)
+      signal: AbortSignal.timeout(3000)
     }).catch(() => null);
 
     if (quoteRes?.ok) {
@@ -146,25 +174,22 @@ async function fetchMarketDataBundle(rawTicker) {
       return null;
     }
 
-    // 2. Fetch live quoteSummary with cookie + crumb across query2 and query1 hosts
+    // 2. Fetch live quoteSummary with cookie + crumb (fast 3s timeout)
     let sData = null;
     const session = await getYahooSession(ua);
     if (session?.cookie && session?.crumb) {
-      for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
-        try {
-          const summaryRes = await fetch(
-            `https://${host}/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail&crumb=${session.crumb}`,
-            {
-              headers: { 'User-Agent': ua, 'Cookie': session.cookie },
-              signal: AbortSignal.timeout(4500)
-            }
-          );
-          if (summaryRes?.ok) {
-            sData = await summaryRes.json().catch(() => null);
-            if (sData?.quoteSummary?.result?.[0]) break;
+      try {
+        const summaryRes = await fetch(
+          `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail&crumb=${session.crumb}`,
+          {
+            headers: { 'User-Agent': ua, 'Cookie': session.cookie },
+            signal: AbortSignal.timeout(3000)
           }
-        } catch (e) {}
-      }
+        );
+        if (summaryRes?.ok) {
+          sData = await summaryRes.json().catch(() => null);
+        }
+      } catch (e) {}
     }
 
     const ks = sData?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
@@ -210,6 +235,16 @@ async function fetchMarketDataBundle(rawTicker) {
       bundle.revenueGrowthPct = revenueGrowth ? (revenueGrowth * 100) : null;
     }
 
+    // 3. Fallback to Google Finance live feed if Yahoo quoteSummary blocked/timeout
+    if ((!bundle.eps || bundle.eps <= 0) && bundle.price) {
+      const gf = await fetchGoogleFinanceMetrics(cleanTicker);
+      if (gf && gf.peRatio > 0) {
+        bundle.peRatio = gf.peRatio;
+        bundle.eps = Number((bundle.price / gf.peRatio).toFixed(2));
+        if (gf.marketCapB) bundle.marketCapB = gf.marketCapB;
+      }
+    }
+
     // =========================================================
     // DETERMINISTIC FINANCIAL FORMULA ENGINE (Reconciled to Live Price)
     // =========================================================
@@ -245,7 +280,7 @@ async function fetchMarketDataBundle(rawTicker) {
       }
     }
   } catch (e) {
-    // Silently fall through
+    // Fail gracefully
   }
 
   return bundle;
@@ -586,7 +621,7 @@ Respond ONLY in valid JSON matching this schema:
 
     let parsedJson = null;
 
-    // Safe JSON parser with auto-repair for trailing commas & unclosed delimiters
+    // Safe JSON parser with stack-based auto-repair for truncated streams & dangling quotes
     function safeParseJson(rawText) {
       if (!rawText) throw new Error('Empty model response');
       const cleaned = rawText.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/g, '').trim();
@@ -596,36 +631,41 @@ Respond ONLY in valid JSON matching this schema:
         return JSON.parse(cleaned);
       } catch (e) {}
 
-      // 2. Outermost { ... } object
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      // 2. Outermost { ... } object with stack-based delimiter auto-repair
+      const jsonMatch = cleaned.match(/\{[\s\S]*/);
       if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          try {
-            const noTrailing = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
-            return JSON.parse(noTrailing);
-          } catch (e2) {}
+        let candidate = jsonMatch[0].replace(/\\+$/, '');
+        // If truncated inside an unescaped string, close the quote
+        const quoteMatches = candidate.match(/(?<!\\)"/g) || [];
+        if (quoteMatches.length % 2 !== 0) {
+          candidate += '"';
         }
+        candidate = candidate.replace(/,\s*$/, '');
+
+        // Stack-based bracket auto-closure
+        const stack = [];
+        let inString = false;
+        for (let i = 0; i < candidate.length; i++) {
+          const c = candidate[i];
+          if (c === '"' && candidate[i - 1] !== '\\') inString = !inString;
+          if (!inString) {
+            if (c === '{' || c === '[') stack.push(c);
+            else if (c === '}' && stack[stack.length - 1] === '{') stack.pop();
+            else if (c === ']' && stack[stack.length - 1] === '[') stack.pop();
+          }
+        }
+        while (stack.length > 0) {
+          const open = stack.pop();
+          candidate += (open === '{' ? '}' : ']');
+        }
+
+        try {
+          const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
+          return JSON.parse(fixed);
+        } catch (e2) {}
       }
 
-      // 3. Auto-close truncated JSON object
-      let candidate = jsonMatch ? jsonMatch[0] : cleaned;
-      candidate = candidate.replace(/,\s*$/, '');
-      const openBraces = (candidate.match(/\{/g) || []).length;
-      const closeBraces = (candidate.match(/\}/g) || []).length;
-      const openBrackets = (candidate.match(/\[/g) || []).length;
-      const closeBrackets = (candidate.match(/\]/g) || []).length;
-
-      for (let i = 0; i < (openBrackets - closeBrackets); i++) candidate += ']';
-      for (let i = 0; i < (openBraces - closeBraces); i++) candidate += '}';
-
-      try {
-        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
-        return JSON.parse(fixed);
-      } catch (e3) {
-        throw new Error(`Failed to parse AI JSON response: ${cleaned.slice(0, 160)}...`);
-      }
+      throw new Error(`Failed to parse AI JSON response: ${cleaned.slice(0, 160)}...`);
     }
 
     // ==========================================
@@ -767,16 +807,15 @@ Respond ONLY in valid JSON matching this schema:
     }
 
     // ==========================================
-    // 2. Google Gemini Engine Execution (Gemini 3.7 Thinking Mode)
+    // 2. Google Gemini Engine Execution (Gemini 3.7 / 2.5 Flash Streaming)
     // ==========================================
     async function executeGemini(onChunk) {
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
       const geminiModels = [
         'gemini-3.7-flash',
-        'gemini-3.5-flash',
+        'gemini-2.5-flash',
         'gemini-flash-latest',
-        'gemini-3.6-flash',
         'gemini-3.1-pro-preview'
       ];
       let lastGeminiError = '';
@@ -787,38 +826,21 @@ Respond ONLY in valid JSON matching this schema:
 
         const generationConfig = {
           temperature: 0.3,
-          maxOutputTokens: 8192,
+          maxOutputTokens: 16384,
+          responseMimeType: "application/json",
           ...(isThinking ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
 
         try {
-          // A. With Search Grounding + Stream
-          let res = await fetch(geminiUrl, {
+          // Direct high-throughput stream without search tool to avoid 429 quota exhaustion
+          const res = await fetch(geminiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and live Google search for ${ticker} actual financial figures. Execute deliberation with explicit data snippets and source links. Return strict JSON.` }] }],
-              tools: [{ googleSearch: {} }],
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
               generationConfig
             })
           });
-
-          // B. Fallback to standard stream without search if tool error
-          if (!res.ok) {
-            const toolErr = await res.text().catch(() => '');
-            lastGeminiError = `[${res.status} tool-search] ${toolErr}`;
-            res = await fetch(geminiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nExecute deep thinking and detailed deliberation for ${ticker} with actual data snippets and source links. Return strict JSON.` }] }],
-                generationConfig: {
-                  ...generationConfig,
-                  responseMimeType: "application/json"
-                }
-              })
-            });
-          }
 
           if (res.ok) {
             let rawText = '';
