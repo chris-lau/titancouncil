@@ -1613,12 +1613,17 @@ function renderMockupSageCard(item, isZh) {
         </button>
       </div>
       <div class="cot-steps-box hidden">
-        ${(Array.isArray(chainOfThought) ? chainOfThought : []).map((step, idx) => `
-          <div class="cot-step-row">
-            <span class="cot-step-num">Step ${idx + 1}</span>
-            <span class="cot-step-text">${step}</span>
+        ${(Array.isArray(chainOfThought) ? chainOfThought : []).map((step, idx) => {
+          const isDissent = /董事會質詢|Boardroom Challenge|Dissent|質詢/i.test(step);
+          return `
+          <div class="cot-step-row ${isDissent ? 'cot-step-dissent' : ''}">
+            <span class="cot-step-num ${isDissent ? 'dissent' : ''}">
+              ${isDissent ? '⚔️ ' : ''}Step ${idx + 1}
+            </span>
+            <span class="cot-step-text ${isDissent ? 'dissent-text' : ''}">${step}</span>
           </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
   `;

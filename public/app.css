@@ -1040,6 +1040,25 @@ body {
   color: #ffffff;
 }
 
+.cot-step-row.cot-step-dissent {
+  background: rgba(242, 139, 130, 0.08);
+  border-left: 3px solid var(--financial-red);
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+  margin-top: 0.35rem;
+}
+
+.cot-step-num.dissent {
+  background: rgba(242, 139, 130, 0.2);
+  color: var(--financial-red);
+  font-weight: 700;
+}
+
+.cot-step-text.dissent-text {
+  color: #fce8e6;
+  font-style: italic;
+}
+
 /* ==========================================================================
    Portfolio Manager Sidebar (Google Finance Analyst Consensus & Target Widget)
    ========================================================================== */

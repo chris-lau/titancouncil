@@ -128,6 +128,7 @@ async function fetchMarketDataBundle(rawTicker) {
       const revenueGrowth = fd.revenueGrowth?.raw || null;
       const grossMargin = fd.grossMargins?.raw || null;
       const operatingMargin = fd.operatingMargins?.raw || null;
+      const earningsGrowth = fd.earningsGrowth?.raw || null;
       const roe = fd.returnOnEquity?.raw || null;
       const roic = fd.returnOnAssets?.raw || null; // Approximate; ROIC not directly in Yahoo
 
@@ -140,6 +141,7 @@ async function fetchMarketDataBundle(rawTicker) {
       bundle.roic = roic ? (roic * 100) : null;
       bundle.grossMarginPct = grossMargin ? (grossMargin * 100) : null;
       bundle.operatingMarginPct = operatingMargin ? (operatingMargin * 100) : null;
+      bundle.earningsGrowthPct = earningsGrowth ? (earningsGrowth * 100) : null;
       bundle.totalDebtB = totalDebt ? (totalDebt / 1e9) : null;
       bundle.totalCashB = totalCash ? (totalCash / 1e9) : null;
       bundle.fcfB = fcf ? (fcf / 1e9) : null;
@@ -165,9 +167,13 @@ async function fetchMarketDataBundle(rawTicker) {
         bundle.priceToBook = priceToBook;
       }
 
-      // Reconciled PEG Ratio based on live P/E and revenue growth
-      if (bundle.peRatio && bundle.revenueGrowthPct && bundle.revenueGrowthPct > 0) {
-        bundle.pegRatio = Number((bundle.peRatio / bundle.revenueGrowthPct).toFixed(2));
+      // Reconciled PEG Ratio (Peter Lynch preferred EPS earnings growth; fallback to revenue growth)
+      const growthForPeg = (bundle.earningsGrowthPct && bundle.earningsGrowthPct > 0)
+        ? bundle.earningsGrowthPct
+        : bundle.revenueGrowthPct;
+
+      if (bundle.peRatio && growthForPeg && growthForPeg > 0) {
+        bundle.pegRatio = Number((bundle.peRatio / growthForPeg).toFixed(2));
       }
 
       // Graham Number = sqrt(22.5 × EPS × Book Value Per Share)
@@ -477,8 +483,8 @@ Respond ONLY in valid JSON matching this schema:
     }
   ],
   "riskManager": {
-    "consensus": { "bullish": 0, "bearish": 0, "neutral": 0 },
-    "weightedConvictionScore": 84,
+    "consensus": { "bullish": 0, "neutral": 0, "bearish": 0 },
+    "weightedConvictionScore": 75,
     "keyRisks": ["Primary fundamental risk", "Macro/Tail risk", "Valuation/Competitive risk"],
     "bullCase": "Summary of upside thesis",
     "bearCase": "Summary of downside breakdown",
@@ -702,12 +708,11 @@ Respond ONLY in valid JSON matching this schema:
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
       const geminiModels = [
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-thinking-exp-01-21',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-3.7-flash',
-        'gemini-2.5-flash'
+        'gemini-3.5-flash',
+        'gemini-2.5-flash',
+        'gemini-flash-latest',
+        'gemini-3.1-pro-preview',
+        'gemini-3-flash-preview'
       ];
       let lastGeminiError = '';
 
