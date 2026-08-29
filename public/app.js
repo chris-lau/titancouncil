@@ -1486,7 +1486,10 @@ function renderDeliberationError(err, ticker, companyInfo) {
     elements.pmStatusBadgeText.textContent = isZh ? '⚠️ 審議未完成' : '⚠️ Deliberation Incomplete';
   }
 
-  const isMissingKey = (err.status === 503 || (err.message && err.message.includes('GEMINI_API_KEY')));
+  const isDeepSeek = state.engine === 'deepseek' || (err.message && err.message.toLowerCase().includes('deepseek'));
+  const engineBrand = isDeepSeek ? 'DeepSeek AI' : 'Google Gemini AI';
+  const keyName = isDeepSeek ? 'DEEPSEEK_API_KEY' : 'GEMINI_API_KEY';
+  const isMissingKey = (err.status === 503 || (err.message && (err.message.includes('API_KEY') || err.message.includes('API Key') || err.message.includes('not configured'))));
   const isRateLimited = (err.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit')));
 
   const errorCard = document.createElement('div');
@@ -1495,23 +1498,23 @@ function renderDeliberationError(err, ticker, companyInfo) {
     <div class="error-card-icon">${isMissingKey ? '🔑' : (isRateLimited ? '⏱️' : '⚠️')}</div>
     <h3 class="error-card-title">
       ${isMissingKey 
-        ? (isZh ? 'GEMINI_API_KEY 環境變數未配置' : 'GEMINI_API_KEY Required') 
+        ? (isZh ? `${keyName} 環境變數未配置` : `${keyName} Required`) 
         : (isRateLimited
             ? (isZh ? '請求頻率保護限制 (Rate Limit Active)' : 'Deliberation Rate Limit Active')
-            : (isZh ? 'Google Gemini AI 研判連線失敗' : 'Google Gemini AI Deliberation Unavailable'))}
+            : (isZh ? `${engineBrand} 研判連線失敗` : `${engineBrand} Deliberation Unavailable`))}
     </h3>
     <p class="error-card-desc">
       ${isMissingKey 
         ? (isZh 
-            ? `TitanCouncil 採用 Google Gemini 原生即時運算。請在 Cloudflare Pages 後台設置 API Key 即可開啟即時多大師審議。`
-            : `TitanCouncil exclusively operates on live Google Gemini LLM. Please configure your API key in Cloudflare Pages to activate real-time council deliberation.`)
+            ? `TitanCouncil 支援 ${engineBrand} 原生即時運算。請在 Cloudflare Pages 後台設置 ${keyName} 即可開啟即時多大師審議。`
+            : `TitanCouncil supports ${engineBrand} live streaming. Please configure ${keyName} in Cloudflare Pages to activate real-time council deliberation.`)
         : (isRateLimited
             ? (isZh
-                ? `為了防止惡意請求與 DDoS 攻擊並保護 API 配額，系統已啟動頻率防護。請稍候幾秒鐘再重新召集智囊團。`
-                : `To prevent abuse, DDoS attacks, and protect Gemini API quota, rate limiting is active. Please wait a few seconds before summoning the council again.`)
+                ? `為了防止惡意請求與保護 ${engineBrand} 配額，系統已啟動頻率防護。請稍候幾秒鐘再重新召集智囊團。`
+                : `To protect ${engineBrand} quota and avoid abuse, rate limiting is active. Please wait a few seconds before summoning the council again.`)
             : (isZh 
-                ? `在對 ${ticker} 進行 AI 研判時遇到錯誤: <strong>${err.message || '未知錯誤'}</strong>`
-                : `Encountered an error while deliberating on ${ticker}: <strong>${err.message || 'Unknown network error'}</strong>`))}
+                ? `在對 ${ticker} 進行 ${engineBrand} 研判時遇到錯誤: <strong>${err.message || '未知錯誤'}</strong>`
+                : `Encountered an error while deliberating on ${ticker} with ${engineBrand}: <strong>${err.message || 'Unknown network error'}</strong>`))}
     </p>
 
     ${isMissingKey ? `
@@ -1520,7 +1523,7 @@ function renderDeliberationError(err, ticker, companyInfo) {
         <ol>
           <li>${isZh ? '前往' : 'Open'} <strong>Cloudflare Dashboard</strong> → <strong>Pages</strong> → <strong>titancouncil</strong></li>
           <li>${isZh ? '點選' : 'Click'} <strong>Settings</strong> → <strong>Environment variables</strong></li>
-          <li>${isZh ? '新增變數名稱' : 'Add variable name'} <code>GEMINI_API_KEY</code> ${isZh ? '並填入您的 Google AI Studio 金鑰' : 'with your Google AI Studio key'}</li>
+          <li>${isZh ? '新增變數名稱' : 'Add variable name'} <code>${keyName}</code> ${isZh ? `並填入您的 ${isDeepSeek ? 'DeepSeek 官方金鑰' : 'Google AI Studio 金鑰'}` : `with your ${isDeepSeek ? 'DeepSeek API key' : 'Google AI Studio key'}`}</li>
           <li>${isZh ? '儲存並重新部署即可立即使用！' : 'Save and redeploy to activate!'}</li>
         </ol>
       </div>
@@ -1550,7 +1553,7 @@ function renderDeliberationError(err, ticker, companyInfo) {
   // Sidebar Sources Indicator
   if (elements.sourcesPillsContainer) {
     elements.sourcesPillsContainer.innerHTML = `
-      <span class="source-badge-pill engine-badge-error">⚠️ ${isMissingKey ? 'GEMINI_API_KEY Missing' : 'Gemini Offline'}</span>
+      <span class="source-badge-pill engine-badge-error">⚠️ ${isMissingKey ? `${keyName} Missing` : `${engineBrand} Offline`}</span>
     `;
   }
 }

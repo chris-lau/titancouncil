@@ -676,22 +676,7 @@ Respond ONLY in valid JSON matching this schema:
       if (!deepseekKey) throw new Error('DEEPSEEK_API_KEY not configured in Cloudflare Environment Variables.');
       
       const candidateConfigs = [
-        // 1. DeepSeek V4 Flash (with streaming & 8192 token window)
-        {
-          model: 'deepseek-v4-flash',
-          body: {
-            model: 'deepseek-v4-flash',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
-            ],
-            response_format: { type: 'json_object' },
-            stream: true,
-            temperature: 0.3,
-            max_tokens: 8192
-          }
-        },
-        // 2. DeepSeek Reasoner (R1 Thinking Model: streaming & 8192 token window)
+        // 1. DeepSeek Reasoner (R1 Thinking Model: streaming & 8192 token window, strict parameters)
         {
           model: 'deepseek-reasoner',
           body: {
@@ -700,13 +685,11 @@ Respond ONLY in valid JSON matching this schema:
               { role: 'system', content: systemPrompt },
               { role: 'user', content: `Execute deep thinking and rigorous investment deliberation for ${ticker}. Respond ONLY in valid JSON matching schema.` }
             ],
-            response_format: { type: 'json_object' },
             stream: true,
-            temperature: 0.3,
             max_tokens: 8192
           }
         },
-        // 3. DeepSeek Chat (V3 Standard: streaming & 8192 token window)
+        // 2. DeepSeek Chat (V3 Standard: streaming, JSON format & 8192 token window)
         {
           model: 'deepseek-chat',
           body: {
