@@ -125,6 +125,15 @@
 
       <!-- Expandable Additional Instructions Drawer -->
       <div class="drawer-content hidden" id="drawerContent">
+        <div class="macro-scenarios-bar">
+          <span class="macro-label" id="i18nMacroLabel">🧪 壓力測試情境:</span>
+          <div class="macro-scenario-pills">
+            <button type="button" class="scenario-pill" data-scenario-zh="假設大客戶 AI 資本支出削減 30%，評估對營收增速與營業利益率的衝擊" data-scenario-en="Assume top hyperscaler AI capex cut by 30%, evaluate impact on revenue growth and operating margin">📉 Capex 削減 30%</button>
+            <button type="button" class="scenario-pill" data-scenario-zh="假設中美先進晶片與供應鏈加徵 25% 關稅，評估毛利率與地緣政治尾部風險" data-scenario-en="Assume 25% tariff on advanced chips and supply chains, evaluate gross margin and geopolitical tail risk">🚨 晶片關稅 +25%</button>
+            <button type="button" class="scenario-pill" data-scenario-zh="假設全球陷入深度經濟衰退，終端硬體需求萎縮，評估下行估值防禦能力" data-scenario-en="Assume deep global recession with shrinking hardware demand, evaluate downside valuation floor">🌪️ 深度衰退測試</button>
+            <button type="button" class="scenario-pill" data-scenario-zh="假設聯準會重啟降息週期 50bp，評估流動性外溢與成長股估值乘數擴張" data-scenario-en="Assume Fed 50bps rate cut cycle, evaluate liquidity spillover and multiple expansion">🏦 降息 50bp 寬鬆</button>
+          </div>
+        </div>
         <textarea 
           id="instructionsInput" 
           placeholder="Optional: Add specific scenarios, constraints, or directives for the Titans (e.g., 'Assume 25% tariff on foreign sales', 'Focus on 5-year dividend safety for retirement', 'Assess impact if cloud revenue growth slows to 10%')..."
@@ -142,6 +151,9 @@
           <h2 class="column-title" id="i18nVerdictCardsTitle">Interactive Titan Verdict Cards & Chain of Thought</h2>
           <div class="column-header-actions">
             <span class="council-tally" id="councilTallyText">13 Titans Deliberating</span>
+            <button type="button" class="debate-toggle-btn hidden" id="debateToggleBtn" title="Filter to show dissenting viewpoints & Boardroom Challenge">
+              <span id="debateToggleText">⚔️ 爭議焦點</span>
+            </button>
             <button type="button" class="cot-batch-toggle-btn hidden" id="cotBatchToggleBtn" title="Expand or Collapse All Chains of Thought">
               <span id="cotBatchToggleText">🧠 Expand All CoT</span>
             </button>

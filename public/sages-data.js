@@ -347,6 +347,9 @@ export const I18N = {
     copiedThoughts: "✅ Copied!",
     expandAllCoT: "🧠 Expand All CoT",
     collapseAllCoT: "▲ Collapse All CoT",
+    macroLabel: "🧪 Macro Stress Scenarios:",
+    debateFocus: "⚔️ Debate Focus",
+    showAllDebate: "⚔️ Show All",
     kbdSearchHint: "Press / to search",
     quickSuggestions: "Popular Tickers"
   },
@@ -389,6 +392,9 @@ export const I18N = {
     copiedThoughts: "✅ 已複製!",
     expandAllCoT: "🧠 展開全部思維鏈",
     collapseAllCoT: "▲ 收起全部思維鏈",
+    macroLabel: "🧪 宏觀情境壓力測試:",
+    debateFocus: "⚔️ 爭議焦點",
+    showAllDebate: "⚔️ 顯示全部",
     kbdSearchHint: "按 / 快速搜尋",
     quickSuggestions: "熱門標的"
   }

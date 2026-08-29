@@ -518,6 +518,62 @@ body {
   color: var(--text-primary);
 }
 
+.drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.macro-scenarios-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.macro-label {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.macro-scenario-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.scenario-pill {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 500;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.scenario-pill:hover {
+  background: var(--bg-surface-elevated);
+  border-color: var(--brand-google-blue);
+  color: var(--brand-google-blue);
+  transform: translateY(-1px);
+}
+
+.scenario-pill.active {
+  background: var(--brand-google-blue-container);
+  border-color: var(--brand-google-blue);
+  color: #ffffff;
+  box-shadow: 0 0 0 1px var(--brand-google-blue);
+}
+
 .drawer-content textarea {
   width: 100%;
   background: var(--bg-surface);
@@ -528,7 +584,6 @@ body {
   font-size: 0.85rem;
   line-height: 1.5;
   padding: 0.75rem 1rem;
-  margin-top: 0.5rem;
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -602,6 +657,49 @@ body {
   border-color: var(--brand-google-blue);
   color: #ffffff;
   transform: translateY(-1px);
+}
+
+.debate-toggle-btn {
+  background: rgba(242, 139, 130, 0.08);
+  border: 1px solid rgba(242, 139, 130, 0.35);
+  color: var(--financial-red);
+  border-radius: var(--radius-pill);
+  padding: 0.32rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.debate-toggle-btn:hover {
+  background: rgba(242, 139, 130, 0.18);
+  border-color: var(--financial-red);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.debate-toggle-btn.active {
+  background: var(--financial-red);
+  border-color: var(--financial-red);
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(242, 139, 130, 0.35);
+}
+
+.mockup-sage-card.dissent-focus {
+  border-color: rgba(242, 139, 130, 0.55);
+  box-shadow: 0 0 12px rgba(242, 139, 130, 0.15);
+  transform: translateY(-2px);
+  transition: all 0.2s ease;
+}
+
+.mockup-sage-card.dimmed-card {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  transform: scale(0.98);
+  transition: all 0.2s ease;
 }
 
 /* Progress bar (Google Material Linear Progress) */

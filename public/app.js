@@ -11,7 +11,9 @@ const state = {
   currentAnalysis: null,
   isAnalyzing: false,
   abortController: null,
-  activeProfileId: 'buffett'
+  activeProfileId: 'buffett',
+  allCotExpanded: false,
+  debateOnly: false
 };
 
 // DOM Elements
@@ -64,6 +66,9 @@ const elements = {
   // New Interactive UI Nodes
   cotBatchToggleBtn: document.getElementById('cotBatchToggleBtn'),
   cotBatchToggleText: document.getElementById('cotBatchToggleText'),
+  debateToggleBtn: document.getElementById('debateToggleBtn'),
+  debateToggleText: document.getElementById('debateToggleText'),
+  i18nMacroLabel: document.getElementById('i18nMacroLabel'),
   tickerAutocomplete: document.getElementById('tickerAutocomplete'),
   kbdSearchHint: document.getElementById('kbdSearchHint'),
   mobileStickyPmBar: document.getElementById('mobileStickyPmBar'),
@@ -284,6 +289,66 @@ function attachEventListeners() {
     });
   }
 
+  // Debate Only / Boardroom Dissent Focus Toggle
+  if (elements.debateToggleBtn) {
+    elements.debateToggleBtn.addEventListener('click', () => {
+      state.debateOnly = !state.debateOnly;
+      const cards = elements.sageCardsGrid.querySelectorAll('.mockup-sage-card');
+
+      if (state.debateOnly) {
+        // Expand all CoT boxes to reveal Step 4 cross-examination
+        const cotBoxes = elements.sageCardsGrid.querySelectorAll('.cot-steps-box');
+        const cotBtns = elements.sageCardsGrid.querySelectorAll('.cot-toggle-btn');
+        cotBoxes.forEach(box => box.classList.remove('hidden'));
+        cotBtns.forEach(btn => {
+          btn.classList.add('open');
+          const icon = btn.querySelector('.cot-toggle-icon');
+          if (icon) icon.textContent = '▲';
+        });
+
+        // Highlight cards containing boardroom dissent, dim unanimous ones
+        cards.forEach(card => {
+          const hasDissent = card.querySelector('.cot-step-dissent');
+          if (hasDissent) {
+            card.classList.add('dissent-focus');
+            card.classList.remove('dimmed-card');
+          } else {
+            card.classList.add('dimmed-card');
+            card.classList.remove('dissent-focus');
+          }
+        });
+
+        elements.debateToggleBtn.classList.add('active');
+      } else {
+        cards.forEach(card => {
+          card.classList.remove('dimmed-card', 'dissent-focus');
+        });
+        elements.debateToggleBtn.classList.remove('active');
+      }
+
+      updateDebateButtonText();
+    });
+  }
+
+  // Macro Scenario Presets
+  document.querySelectorAll('.scenario-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isZh = state.language === 'zh';
+      const scenario = isZh ? pill.dataset.scenarioZh : pill.dataset.scenarioEn;
+      if (elements.instructionsInput) {
+        elements.instructionsInput.value = scenario;
+        elements.instructionsInput.focus();
+      }
+      if (elements.drawerContent && elements.drawerContent.classList.contains('hidden')) {
+        elements.drawerContent.classList.remove('hidden');
+        if (elements.drawerToggleBtn) elements.drawerToggleBtn.setAttribute('aria-expanded', 'true');
+      }
+      document.querySelectorAll('.scenario-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    });
+  });
+
   // Mobile Sticky Bar scroll listener & jump action
   window.addEventListener('scroll', () => {
     if (!elements.mobileStickyPmBar) return;
@@ -375,17 +440,25 @@ function applyLanguage(lang) {
   if (elements.i18nCopyMarkdown) elements.i18nCopyMarkdown.textContent = dict.copyMarkdown;
   if (elements.i18nPrintPdf) elements.i18nPrintPdf.textContent = dict.printPdf;
   if (elements.i18nDisclaimer) elements.i18nDisclaimer.textContent = dict.disclaimer;
+  if (elements.i18nMacroLabel) elements.i18nMacroLabel.textContent = dict.macroLabel || (isZh ? '🧪 宏觀情境壓力測試:' : '🧪 Macro Stress Scenarios:');
   
   if (elements.kbdSearchHint) {
     elements.kbdSearchHint.title = dict.kbdSearchHint || 'Press / to search';
   }
   updateBatchCotButtonText();
+  updateDebateButtonText();
 }
 
 function updateBatchCotButtonText() {
   if (!elements.cotBatchToggleText) return;
   const dict = I18N[state.language] || I18N.en;
   elements.cotBatchToggleText.textContent = state.allCotExpanded ? dict.collapseAllCoT : dict.expandAllCoT;
+}
+
+function updateDebateButtonText() {
+  if (!elements.debateToggleText) return;
+  const dict = I18N[state.language] || I18N.en;
+  elements.debateToggleText.textContent = state.debateOnly ? dict.showAllDebate : dict.debateFocus;
 }
 
 // 1. Ticker Autocomplete & Quick Search Dropdown
@@ -1226,11 +1299,18 @@ function renderFullAnalysis(data, ticker) {
     }
   }
 
-  // Show and initialize Batch CoT button
+  // Show and initialize Batch CoT & Debate Focus buttons
   if (elements.cotBatchToggleBtn) {
     elements.cotBatchToggleBtn.classList.remove('hidden');
     state.allCotExpanded = false;
     updateBatchCotButtonText();
+  }
+
+  if (elements.debateToggleBtn) {
+    elements.debateToggleBtn.classList.remove('hidden');
+    state.debateOnly = false;
+    elements.debateToggleBtn.classList.remove('active');
+    updateDebateButtonText();
   }
 
   state.currentAnalysis = { ticker, results: parsedResults, data };
