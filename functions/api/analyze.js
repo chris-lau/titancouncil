@@ -708,11 +708,11 @@ Respond ONLY in valid JSON matching this schema:
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
       const geminiModels = [
+        'gemini-3.7-flash',
         'gemini-3.5-flash',
-        'gemini-2.5-flash',
         'gemini-flash-latest',
-        'gemini-3.1-pro-preview',
-        'gemini-3-flash-preview'
+        'gemini-3.6-flash',
+        'gemini-3.1-pro-preview'
       ];
       let lastGeminiError = '';
 
