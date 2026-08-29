@@ -64,16 +64,23 @@ async function getYahooSession(ua) {
     if (!rawCookie) return null;
     const cookie = rawCookie.split(';')[0];
 
-    const crumbRes = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-      headers: { 'User-Agent': ua, 'Cookie': cookie },
-      signal: AbortSignal.timeout(3500)
-    });
-    if (!crumbRes.ok) return null;
-    const crumb = (await crumbRes.text()).trim();
-
-    if (cookie && crumb && !crumb.includes('<') && !crumb.includes('{')) {
-      cachedYahooSession = { cookie, crumb, expires: now + 3600000 }; // 1 hour cache
-      return cachedYahooSession;
+    // Try query2 first, fall back to query1
+    for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
+      try {
+        const crumbRes = await fetch(`https://${host}/v1/test/getcrumb`, {
+          headers: { 'User-Agent': ua, 'Cookie': cookie },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (crumbRes.ok) {
+          const crumb = (await crumbRes.text()).trim();
+          if (cookie && crumb && !crumb.includes('<') && !crumb.includes('{')) {
+            cachedYahooSession = { cookie, crumb, expires: now + 3600000 }; // 1 hour cache
+            return cachedYahooSession;
+          }
+        }
+      } catch (e) {
+        // Continue to next host
+      }
     }
   } catch (e) {
     // Network / timeout
@@ -81,132 +88,8 @@ async function getYahooSession(ua) {
   return null;
 }
 
-// Curated verified fundamental benchmarks for top-volume market leaders
-// Acts as an immediate circuit-breaker fallback if Yahoo Finance rate-limits or blocks Cloudflare Worker IP
-const KNOWN_TICKER_BENCHMARKS = {
-  'NVDA': {
-    name: 'NVIDIA Corporation',
-    eps: 7.55,
-    bookValuePerShare: 8.07,
-    grossMarginPct: 74.7,
-    operatingMarginPct: 66.2,
-    roe: 117.2,
-    roic: 53.6,
-    revenueB: 302.97,
-    revenueGrowthPct: 105.9,
-    earningsGrowthPct: 127.8,
-    fcfB: 41.81,
-    ebitdaB: 201.27,
-    totalCashB: 62.47,
-    totalDebtB: 38.86,
-    debtToEquity: 0.17
-  },
-  'AAPL': {
-    name: 'Apple Inc.',
-    eps: 6.42,
-    bookValuePerShare: 4.82,
-    grossMarginPct: 46.2,
-    operatingMarginPct: 31.5,
-    roe: 152.0,
-    roic: 32.1,
-    revenueB: 391.0,
-    revenueGrowthPct: 6.1,
-    earningsGrowthPct: 12.0,
-    fcfB: 108.0,
-    ebitdaB: 133.0,
-    totalCashB: 65.0,
-    totalDebtB: 106.0,
-    debtToEquity: 1.45
-  },
-  'MSFT': {
-    name: 'Microsoft Corporation',
-    eps: 12.10,
-    bookValuePerShare: 34.50,
-    grossMarginPct: 69.8,
-    operatingMarginPct: 44.6,
-    roe: 38.5,
-    roic: 26.8,
-    revenueB: 245.1,
-    revenueGrowthPct: 15.2,
-    earningsGrowthPct: 20.1,
-    fcfB: 74.1,
-    ebitdaB: 125.0,
-    totalCashB: 80.0,
-    totalDebtB: 47.0,
-    debtToEquity: 0.20
-  },
-  'GOOGL': {
-    name: 'Alphabet Inc.',
-    eps: 7.54,
-    bookValuePerShare: 26.20,
-    grossMarginPct: 58.1,
-    operatingMarginPct: 32.2,
-    roe: 31.5,
-    roic: 21.4,
-    revenueB: 350.0,
-    revenueGrowthPct: 14.8,
-    earningsGrowthPct: 35.0,
-    fcfB: 69.0,
-    ebitdaB: 112.0,
-    totalCashB: 93.0,
-    totalDebtB: 28.0,
-    debtToEquity: 0.10
-  },
-  'AMZN': {
-    name: 'Amazon.com, Inc.',
-    eps: 5.12,
-    bookValuePerShare: 23.40,
-    grossMarginPct: 49.0,
-    operatingMarginPct: 11.2,
-    roe: 22.8,
-    roic: 12.5,
-    revenueB: 620.0,
-    revenueGrowthPct: 11.5,
-    earningsGrowthPct: 55.0,
-    fcfB: 48.0,
-    ebitdaB: 105.0,
-    totalCashB: 88.0,
-    totalDebtB: 135.0,
-    debtToEquity: 0.55
-  },
-  'TSLA': {
-    name: 'Tesla, Inc.',
-    eps: 2.15,
-    bookValuePerShare: 21.30,
-    grossMarginPct: 18.2,
-    operatingMarginPct: 8.2,
-    roe: 12.4,
-    roic: 7.8,
-    revenueB: 97.5,
-    revenueGrowthPct: 8.5,
-    earningsGrowthPct: -15.0,
-    fcfB: 4.2,
-    ebitdaB: 14.5,
-    totalCashB: 33.6,
-    totalDebtB: 11.2,
-    debtToEquity: 0.16
-  },
-  'META': {
-    name: 'Meta Platforms, Inc.',
-    eps: 23.50,
-    bookValuePerShare: 64.00,
-    grossMarginPct: 81.5,
-    operatingMarginPct: 41.5,
-    roe: 36.5,
-    roic: 25.0,
-    revenueB: 165.0,
-    revenueGrowthPct: 18.5,
-    earningsGrowthPct: 35.0,
-    fcfB: 52.0,
-    ebitdaB: 82.0,
-    totalCashB: 71.0,
-    totalDebtB: 38.0,
-    debtToEquity: 0.22
-  }
-};
-
-// Fetch verified real-time price + fundamental financial data from market feeds
-// Returns a comprehensive bundle of real-time and computed financial metrics
+// Fetch verified real-time price + fundamental financial data from live market feeds
+// Strictly dynamic: no default benchmark values and zero reliance on LLM internal memory
 async function fetchMarketDataBundle(rawTicker) {
   const cleanTicker = (rawTicker || '').replace(/^\$/, '').trim().toUpperCase();
   const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -263,20 +146,24 @@ async function fetchMarketDataBundle(rawTicker) {
       return null;
     }
 
-    // 2. Fetch authenticated quoteSummary with cookie + crumb
+    // 2. Fetch live quoteSummary with cookie + crumb across query2 and query1 hosts
     let sData = null;
     const session = await getYahooSession(ua);
     if (session?.cookie && session?.crumb) {
-      const summaryRes = await fetch(
-        `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail&crumb=${session.crumb}`,
-        {
-          headers: { 'User-Agent': ua, 'Cookie': session.cookie },
-          signal: AbortSignal.timeout(4500)
-        }
-      ).catch(() => null);
-
-      if (summaryRes?.ok) {
-        sData = await summaryRes.json().catch(() => null);
+      for (const host of ['query2.finance.yahoo.com', 'query1.finance.yahoo.com']) {
+        try {
+          const summaryRes = await fetch(
+            `https://${host}/v10/finance/quoteSummary/${cleanTicker}?modules=defaultKeyStatistics,financialData,summaryDetail&crumb=${session.crumb}`,
+            {
+              headers: { 'User-Agent': ua, 'Cookie': session.cookie },
+              signal: AbortSignal.timeout(4500)
+            }
+          );
+          if (summaryRes?.ok) {
+            sData = await summaryRes.json().catch(() => null);
+            if (sData?.quoteSummary?.result?.[0]) break;
+          }
+        } catch (e) {}
       }
     }
 
@@ -285,7 +172,7 @@ async function fetchMarketDataBundle(rawTicker) {
     const sd = sData?.quoteSummary?.result?.[0]?.summaryDetail;
 
     if (ks || fd || sd) {
-      // Live Yahoo fundamentals
+      // Live Yahoo financial statements
       const eps = ks?.trailingEps?.raw || ks?.forwardEps?.raw || null;
       const bvps = ks?.bookValue?.raw || null;
       const marketCap = (sd?.marketCap?.raw || ks?.marketCap?.raw || null);
@@ -321,24 +208,6 @@ async function fetchMarketDataBundle(rawTicker) {
       bundle.ebitdaB = ebitda ? (ebitda / 1e9) : null;
       bundle.revenueB = revenue ? (revenue / 1e9) : null;
       bundle.revenueGrowthPct = revenueGrowth ? (revenueGrowth * 100) : null;
-    } else if (KNOWN_TICKER_BENCHMARKS[cleanTicker]) {
-      // Benchmark Circuit-Breaker: populate verified fundamentals if Yahoo quoteSummary blocked/timed out
-      const bm = KNOWN_TICKER_BENCHMARKS[cleanTicker];
-      bundle.name = bm.name || bundle.name;
-      bundle.eps = bm.eps;
-      bundle.bookValuePerShare = bm.bookValuePerShare;
-      bundle.grossMarginPct = bm.grossMarginPct;
-      bundle.operatingMarginPct = bm.operatingMarginPct;
-      bundle.roe = bm.roe;
-      bundle.roic = bm.roic;
-      bundle.revenueB = bm.revenueB;
-      bundle.revenueGrowthPct = bm.revenueGrowthPct;
-      bundle.earningsGrowthPct = bm.earningsGrowthPct;
-      bundle.fcfB = bm.fcfB;
-      bundle.ebitdaB = bm.ebitdaB;
-      bundle.totalCashB = bm.totalCashB;
-      bundle.totalDebtB = bm.totalDebtB;
-      bundle.debtToEquity = bm.debtToEquity;
     }
 
     // =========================================================
@@ -437,8 +306,22 @@ export async function onRequestPost(context) {
     // Fetch verified live market price + fundamental financial data (Ground Truth)
     const liveData = await fetchMarketDataBundle(ticker);
 
+    // ZERO-HALLUCINATION ENFORCEMENT:
+    // If live market feed could not retrieve price or financial statements, abort immediately.
+    // Strictly NO default/hardcoded values and NO relying on LLM historical memory!
+    if (!liveData || !liveData.price || (!liveData.eps && !liveData.revenueB)) {
+      return new Response(JSON.stringify({
+        error: isZh
+          ? `無法從官方即時金融源取得 $${ticker.replace(/^\$/, '').toUpperCase()} 的最新驗證財報數據（EPS、營收與毛利率）。為落實零幻覺原則，系統絕不使用預設靜態值或任由 AI 臆測過期財報，已中止本次審議。請確認代碼或稍候數秒重試。`
+          : `Unable to retrieve verified live financial statements (EPS, revenue, margins) for $${ticker.replace(/^\$/, '').toUpperCase()} from real-time market feeds. Deliberation halted to prevent AI data hallucinations. Please verify the ticker or retry in a few seconds.`
+      }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Helper to format a number or return fallback string
-    const fmt = (v, decimals = 2, suffix = '') => (v != null && !isNaN(v)) ? `${Number(v).toFixed(decimals)}${suffix}` : 'N/A (use web search)';
+    const fmt = (v, decimals = 2, suffix = '') => (v != null && !isNaN(v)) ? `${Number(v).toFixed(decimals)}${suffix}` : 'N/A';
 
     const systemPrompt = `You are the TitanCouncil Coordinator.
 Conduct a rigorous multi-perspective stock deliberation on: "${ticker}".
