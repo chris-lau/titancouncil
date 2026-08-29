@@ -425,13 +425,14 @@ MANDATORY REQUIREMENTS:
      - Total Cash is EXACTLY $${liveData.totalCashB ? liveData.totalCashB.toFixed(1) + 'B' : 'N/A'}. (NEVER hallucinate $13.3B).
      - Graham Number is EXACTLY $${liveData.grahamNumber || 'N/A'}.
    * Peter Lynch PEG Ratio MUST be cited as EXACTLY ${fmt(liveData.pegRatio, 2)} (calculated as P/E ${fmt(liveData.peRatio, 2, 'x')} / Growth ${fmt(liveData.earningsGrowthPct || liveData.revenueGrowthPct, 1, '%')}). DO NOT invent conflicting PEG ratios (e.g. never claim PEG is 2.8x when the table says ${fmt(liveData.pegRatio, 2)}).
-6. AUTHENTIC PERSONA VOICES:
+6. AUTHENTIC PERSONA VOICES & STRICT PROHIBITION ON SIMULATION META-LANGUAGE:
    * Speak in each legend's authentic philosophical voice, rhetoric, and distinct mental models.
-   * For historical/deceased legends (Graham, Munger, Jhunjhunwala): Apply their timeless published frameworks directly to current figures without stiff robotic preambles like "Applying my framework:".
+   * ABSOLUTE PROHIBITION: Under NO circumstances should Benjamin Graham, Charlie Munger, or any Titan say "Under my simulated framework", "In this simulation", "As a simulated model", or "Applying my framework".
+   * Every Titan must speak directly and decisively as the actual investor analyzing the verified corporate figures and economic moats.
 ================================================================================
 ` : `
 Use live market knowledge to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
-Apply each legend's timeless published frameworks directly to current figures with authentic voice and intellectual rigor.
+Apply each legend's timeless published frameworks directly to current figures with authentic voice and intellectual rigor. NEVER use robotic meta-language like "simulated framework".
 `}
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
