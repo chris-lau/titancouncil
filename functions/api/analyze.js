@@ -447,7 +447,7 @@ THE 13 TITAN ANALYTICAL FRAMEWORKS & STRICT SIGNAL DECISION TREES:
 ================================================================================
 CRITICAL BOARDROOM CROSS-EXAMINATION & EVIDENCE:
 ================================================================================
-- Each Titan's Chain of Thought MUST feature 3 to 4 comprehensive, multi-sentence steps:
+- Each Titan's Chain of Thought MUST feature 4 concise, high-density steps (1 to 2 sharp sentences per step to maximize analytical precision and prevent token truncation):
   1. Moat & Strategic Franchise Analysis (Circle of competence, pricing power, customer switching costs)
   2. Forensic Quantitative Diagnostic (Exact ROE, ROIC, Gross/Operating margins, FCF, Debt obligations)
   3. Valuation Test & Margin of Safety (Exact quantitative test: Graham Number, FCF Yield vs 10%, PEG vs 1.0, DCF band)
