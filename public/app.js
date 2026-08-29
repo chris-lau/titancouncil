@@ -836,7 +836,7 @@ function renderSkeletonCards(selectedSages) {
       <div class="live-thinking-terminal-toolbar">
         <span>${isZh ? '💭 即時思維鏈串流 (Live Chain of Thought Stream)' : '💭 Live Chain of Thought Stream'}</span>
         <div class="live-terminal-actions">
-          <span id="liveCopyThinkingBtn" class="terminal-copy-badge" title="${isZh ? '複製即時思維鏈' : 'Copy Live Stream Thoughts'}">${isZh ? '📋 複製' : '📋 Copy'}</span>
+          <button type="button" id="liveCopyThinkingBtn" class="terminal-copy-btn" title="${isZh ? '複製即時思維鏈與分析串流' : 'Copy Live Stream Thoughts & Deliberation'}">${isZh ? '📋 複製思考' : '📋 Copy Thoughts'}</button>
           <span id="liveAutoScrollBtn" class="autoscroll-badge">${isZh ? '自動滾動: 開啟' : 'Auto-Scroll: ON'}</span>
         </div>
       </div>
@@ -859,7 +859,7 @@ function renderSkeletonCards(selectedSages) {
         liveCopyBtn.textContent = isZh ? '✅ 已複製!' : '✅ Copied!';
         setTimeout(() => {
           liveCopyBtn.classList.remove('copied');
-          liveCopyBtn.textContent = isZh ? '📋 複製' : '📋 Copy';
+          liveCopyBtn.textContent = isZh ? '📋 複製思考' : '📋 Copy Thoughts';
         }, 2000);
       }).catch(err => {
         console.error('Failed to copy live stream thoughts:', err);
@@ -1040,12 +1040,16 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
             const autoScrollBtnEl = document.getElementById('liveAutoScrollBtn');
 
             if (streamTextEl) {
-              const prefix = accumulatedThinking ? (accumulatedThinking + '\n\n') : '';
-              const synthesisStatus = isZh
-                ? `[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告... (已生成 ${Math.floor(contentTokenCount / 4)} tokens)]`
-                : `[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters... (${Math.floor(contentTokenCount / 4)} tokens synthesized)]`;
-
-              streamTextEl.textContent = prefix + synthesisStatus;
+              if (accumulatedThinking) {
+                const prefix = accumulatedThinking + '\n\n';
+                const synthesisStatus = isZh
+                  ? `[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告... (已生成 ${Math.floor(contentTokenCount / 4)} tokens)]`
+                  : `[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters... (${Math.floor(contentTokenCount / 4)} tokens synthesized)]`;
+                streamTextEl.textContent = prefix + synthesisStatus;
+              } else {
+                // If model does not emit separate hidden reasoning tokens (e.g. Gemini 2.5), stream live deliberation tokens!
+                streamTextEl.textContent = accumulatedContent;
+              }
               if (streamBodyEl && (!autoScrollBtnEl || !autoScrollBtnEl.classList.contains('paused'))) {
                 streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
               }
@@ -1056,6 +1060,8 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
           finalJsonData = parsed;
           if (accumulatedThinking && !finalJsonData.thinkingContent) {
             finalJsonData.thinkingContent = accumulatedThinking;
+          } else if (!finalJsonData.thinkingContent && accumulatedContent) {
+            finalJsonData.thinkingContent = accumulatedContent;
           }
         } else if (eventType === 'error') {
           throw new Error(parsed.error || 'Streaming error');
