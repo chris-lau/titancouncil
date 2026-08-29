@@ -391,6 +391,48 @@ Respond ONLY in valid JSON matching this schema:
 
     let parsedJson = null;
 
+    // Safe JSON parser with auto-repair for trailing commas & unclosed delimiters
+    function safeParseJson(rawText) {
+      if (!rawText) throw new Error('Empty model response');
+      const cleaned = rawText.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/g, '').trim();
+
+      // 1. Direct JSON parse
+      try {
+        return JSON.parse(cleaned);
+      } catch (e) {}
+
+      // 2. Outermost { ... } object
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          try {
+            const noTrailing = jsonMatch[0].replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(noTrailing);
+          } catch (e2) {}
+        }
+      }
+
+      // 3. Auto-close truncated JSON object
+      let candidate = jsonMatch ? jsonMatch[0] : cleaned;
+      candidate = candidate.replace(/,\s*$/, '');
+      const openBraces = (candidate.match(/\{/g) || []).length;
+      const closeBraces = (candidate.match(/\}/g) || []).length;
+      const openBrackets = (candidate.match(/\[/g) || []).length;
+      const closeBrackets = (candidate.match(/\]/g) || []).length;
+
+      for (let i = 0; i < (openBrackets - closeBrackets); i++) candidate += ']';
+      for (let i = 0; i < (openBraces - closeBraces); i++) candidate += '}';
+
+      try {
+        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixed);
+      } catch (e3) {
+        throw new Error(`Failed to parse AI JSON response: ${cleaned.slice(0, 160)}...`);
+      }
+    }
+
     // ==========================================
     // 1. DeepSeek Engine Execution (Streaming Thinking Mode)
     // ==========================================
@@ -414,7 +456,6 @@ Respond ONLY in valid JSON matching this schema:
           }
         },
         // 2. DeepSeek Reasoner (R1 Thinking Model: streaming & 8192 token window)
-        // Note: R1 uses its own CoT temperature internally; temperature param here is advisory
         {
           model: 'deepseek-reasoner',
           body: {
@@ -445,7 +486,6 @@ Respond ONLY in valid JSON matching this schema:
           }
         }
       ];
-
 
       let lastDeepSeekError = '';
 
@@ -484,11 +524,11 @@ Respond ONLY in valid JSON matching this schema:
                   const delta = parsed.choices?.[0]?.delta || {};
                   if (delta.reasoning_content) {
                     fullReasoning += delta.reasoning_content;
-                    if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
+                    if (onChunk) await onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
                   }
                   if (delta.content) {
                     fullContent += delta.content;
-                    if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
+                    if (onChunk) await onChunk({ type: 'content', chunk: delta.content, model: config.model });
                   }
                 } catch (pe) {}
               }
@@ -503,21 +543,17 @@ Respond ONLY in valid JSON matching this schema:
                   const delta = parsed.choices?.[0]?.delta || {};
                   if (delta.reasoning_content) {
                     fullReasoning += delta.reasoning_content;
-                    if (onChunk) onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
+                    if (onChunk) await onChunk({ type: 'thinking', chunk: delta.reasoning_content, totalThinking: fullReasoning, model: config.model });
                   }
                   if (delta.content) {
                     fullContent += delta.content;
-                    if (onChunk) onChunk({ type: 'content', chunk: delta.content, model: config.model });
+                    if (onChunk) await onChunk({ type: 'content', chunk: delta.content, model: config.model });
                   }
                 } catch (pe) {}
               }
             }
 
-            const cleaned = fullContent.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-            // Resilient JSON extraction: find outermost { ... } object
-            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error(`No valid JSON object found in DeepSeek response: ${cleaned.slice(0, 150)}`);
-            const json = JSON.parse(jsonMatch[0]);
+            const json = safeParseJson(fullContent);
             json.thinkingContent = fullReasoning;
             json.thinkingMode = Boolean(fullReasoning) || (config.model === 'deepseek-reasoner');
             json.modelUsed = config.model;
@@ -541,17 +577,24 @@ Respond ONLY in valid JSON matching this schema:
     async function executeGemini(onChunk) {
       if (!geminiKey) throw new Error('GEMINI_API_KEY not configured');
 
-      const geminiModels = ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+      const geminiModels = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-thinking-exp-01-21',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-3.7-flash',
+        'gemini-2.5-flash'
+      ];
       let lastGeminiError = '';
 
       for (const model of geminiModels) {
-        const is37 = model.includes('3.7');
+        const isThinking = model.includes('3.7') || model.includes('thinking');
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
 
         const generationConfig = {
           temperature: 0.3,
           maxOutputTokens: 8192,
-          ...(is37 ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
+          ...(isThinking ? { thinkingConfig: { thinkingBudget: 2048 } } : {})
         };
 
         try {
@@ -605,15 +648,19 @@ Respond ONLY in valid JSON matching this schema:
                 try {
                   const parsed = JSON.parse(dataStr);
                   const parts = parsed.candidates?.[0]?.content?.parts || [];
-                  parts.forEach(part => {
-                    if (part.thought) {
-                      thoughts += (part.text || '');
-                      if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
-                    } else if (part.text) {
-                      rawText += part.text;
-                      if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
+                  for (const part of parts) {
+                    const isThought = Boolean(part.thought);
+                    const thoughtText = typeof part.thought === 'string' ? part.thought : (isThought ? (part.text || '') : '');
+                    const contentText = !isThought && part.text ? part.text : '';
+
+                    if (thoughtText) {
+                      thoughts += thoughtText;
+                      if (onChunk) await onChunk({ type: 'thinking', chunk: thoughtText, totalThinking: thoughts, model });
+                    } else if (contentText) {
+                      rawText += contentText;
+                      if (onChunk) await onChunk({ type: 'content', chunk: contentText, model });
                     }
-                  });
+                  }
                   if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
                     groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
                   }
@@ -629,15 +676,19 @@ Respond ONLY in valid JSON matching this schema:
                 try {
                   const parsed = JSON.parse(dataStr);
                   const parts = parsed.candidates?.[0]?.content?.parts || [];
-                  parts.forEach(part => {
-                    if (part.thought) {
-                      thoughts += (part.text || '');
-                      if (onChunk) onChunk({ type: 'thinking', chunk: part.text, totalThinking: thoughts, model });
-                    } else if (part.text) {
-                      rawText += part.text;
-                      if (onChunk) onChunk({ type: 'content', chunk: part.text, model });
+                  for (const part of parts) {
+                    const isThought = Boolean(part.thought);
+                    const thoughtText = typeof part.thought === 'string' ? part.thought : (isThought ? (part.text || '') : '');
+                    const contentText = !isThought && part.text ? part.text : '';
+
+                    if (thoughtText) {
+                      thoughts += thoughtText;
+                      if (onChunk) await onChunk({ type: 'thinking', chunk: thoughtText, totalThinking: thoughts, model });
+                    } else if (contentText) {
+                      rawText += contentText;
+                      if (onChunk) await onChunk({ type: 'content', chunk: contentText, model });
                     }
-                  });
+                  }
                   if (parsed.candidates?.[0]?.groundingMetadata?.groundingChunks) {
                     groundingChunks = parsed.candidates[0].groundingMetadata.groundingChunks;
                   }
@@ -645,13 +696,9 @@ Respond ONLY in valid JSON matching this schema:
               }
             }
 
-            const cleaned = rawText.replace(/```json\s*/i, '').replace(/```\s*$/, '').trim();
-            // Resilient JSON extraction: find outermost { ... } object
-            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error(`No valid JSON object found in Gemini response: ${cleaned.slice(0, 150)}`);
-            const json = JSON.parse(jsonMatch[0]);
+            const json = safeParseJson(rawText);
             json.thinkingContent = thoughts;
-            json.thinkingMode = is37;
+            json.thinkingMode = isThinking;
             json.modelUsed = model;
             json.engine = 'gemini';
 
@@ -683,17 +730,21 @@ Respond ONLY in valid JSON matching this schema:
       const writer = writable.getWriter();
       const encoder = new TextEncoder();
 
-      const sendEvent = (event, data) => {
-        const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-        return writer.write(encoder.encode(payload));
+      const sendEvent = async (event, data) => {
+        try {
+          const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+          await writer.write(encoder.encode(payload));
+        } catch (err) {
+          // Closed or aborted stream
+        }
       };
 
-      // Execute asynchronously and stream tokens
-      (async () => {
+      // Execute asynchronously and stream tokens, protecting context lifecycle with waitUntil
+      const streamTask = (async () => {
         try {
           let finalJson = null;
-          const onChunk = (chunkData) => {
-            sendEvent('chunk', chunkData);
+          const onChunk = async (chunkData) => {
+            await sendEvent('chunk', chunkData);
           };
 
           if (engine === 'deepseek') {
@@ -722,15 +773,22 @@ Respond ONLY in valid JSON matching this schema:
         } catch (streamErr) {
           await sendEvent('error', { error: streamErr.message });
         } finally {
-          await writer.close();
+          try {
+            await writer.close();
+          } catch (e) {}
         }
       })();
 
+      if (context.waitUntil) {
+        context.waitUntil(streamTask);
+      }
+
       return new Response(readable, {
         headers: {
-          'Content-Type': 'text/event-stream',
+          'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive'
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no'
         }
       });
     }

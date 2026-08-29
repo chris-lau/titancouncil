@@ -903,7 +903,9 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
 
     // Handle Live SSE Stream
     let accumulatedThinking = '';
+    let accumulatedContent = '';
     let finalJsonData = null;
+    let contentTokenCount = 0;
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -938,20 +940,33 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
               }
             }
             elements.progressBarFill.style.width = '70%';
-          } else if (parsed.type === 'content') {
-            elements.progressBarFill.style.width = '85%';
+          } else if (parsed.type === 'content' && parsed.chunk) {
+            accumulatedContent += parsed.chunk;
+            contentTokenCount += parsed.chunk.length;
+
+            const progressPct = Math.min(95, 72 + Math.floor(contentTokenCount / 100));
+            elements.progressBarFill.style.width = `${progressPct}%`;
+
             const toolbarSpan = document.querySelector('.live-thinking-terminal-toolbar span:first-child');
-            if (toolbarSpan && !toolbarSpan.dataset.done) {
-              toolbarSpan.dataset.done = 'true';
-              toolbarSpan.textContent = isZh ? '✅ 深度思維完成 · 正在生成 13 位巨頭評級報告...' : '✅ Thinking Complete · Finalizing Council Verdicts...';
-              
-              const streamTextEl = document.getElementById('liveThinkingStreamText');
-              if (streamTextEl && !streamTextEl.textContent.includes('[✓ Thinking Phase Complete')) {
-                streamTextEl.textContent = accumulatedThinking + (isZh 
-                  ? '\n\n[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告...]'
-                  : '\n\n[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters...]');
-                const streamBodyEl = document.getElementById('liveThinkingStreamBody');
-                if (streamBodyEl) streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
+            if (toolbarSpan) {
+              toolbarSpan.textContent = isZh 
+                ? `⚡ 正在即時生成 13 位巨頭評級報告 (${Math.floor(contentTokenCount / 4)} tokens)...` 
+                : `⚡ Generating Titan Council Verdicts (${Math.floor(contentTokenCount / 4)} tokens)...`;
+            }
+            
+            const streamTextEl = document.getElementById('liveThinkingStreamText');
+            const streamBodyEl = document.getElementById('liveThinkingStreamBody');
+            const autoScrollBtnEl = document.getElementById('liveAutoScrollBtn');
+
+            if (streamTextEl) {
+              const prefix = accumulatedThinking ? (accumulatedThinking + '\n\n') : '';
+              const synthesisStatus = isZh
+                ? `[✓ 深度思維推理完成。正在將各投資大師之分析觀點、確信度與風險加權生成結構化評級報告... (已生成 ${Math.floor(contentTokenCount / 4)} tokens)]`
+                : `[✓ Thinking Phase Completed. Synthesizing Titan viewpoints, conviction ratings, and portfolio parameters... (${Math.floor(contentTokenCount / 4)} tokens synthesized)]`;
+
+              streamTextEl.textContent = prefix + synthesisStatus;
+              if (streamBodyEl && (!autoScrollBtnEl || !autoScrollBtnEl.classList.contains('paused'))) {
+                streamBodyEl.scrollTop = streamBodyEl.scrollHeight;
               }
             }
           }
@@ -986,6 +1001,25 @@ async function runGeminiDeliberation(ticker, selectedSages, instructions) {
     // Flush any remaining event in buffer
     if (buffer.trim()) {
       handleEventBlock(buffer.trim());
+    }
+
+    // Fallback: If event: complete was clipped or missing but accumulatedContent has JSON, parse directly
+    if (!finalJsonData && accumulatedContent.trim()) {
+      try {
+        const cleaned = accumulatedContent.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/g, '').trim();
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsedDirect = JSON.parse(jsonMatch[0].replace(/,\s*([}\]])/g, '$1'));
+          if (parsedDirect && (parsedDirect.verdicts || parsedDirect.portfolioManager)) {
+            finalJsonData = parsedDirect;
+            if (accumulatedThinking && !finalJsonData.thinkingContent) {
+              finalJsonData.thinkingContent = accumulatedThinking;
+            }
+          }
+        }
+      } catch (parseFallbackErr) {
+        console.warn('Client-side JSON stream fallback parse attempt failed:', parseFallbackErr);
+      }
     }
 
     if (finalJsonData) {
@@ -1099,36 +1133,50 @@ function renderFullAnalysis(data, ticker) {
 
 
   verdicts.forEach(v => {
-    const sageObj = SAGES.find(s => 
-      s.name.toLowerCase() === (v.sageName || '').toLowerCase() || 
-      s.id === (v.titanId || '').toLowerCase()
-    ) || {
-      id: 'custom',
-      name: v.sageName || v.titanName || 'Titan',
-      nameZh: v.sageName || v.titanName || '投資巨頭',
-      fallbackIcon: '🏛️'
-    };
+    try {
+      const sageObj = SAGES.find(s => 
+        s.name.toLowerCase() === (v.sageName || '').toLowerCase() || 
+        s.id === (v.titanId || '').toLowerCase()
+      ) || {
+        id: 'custom',
+        name: v.sageName || v.titanName || 'Titan',
+        nameZh: v.sageName || v.titanName || '投資巨頭',
+        fallbackIcon: '🏛️'
+      };
 
-    const fallbackEvidence = getTitanEvidenceAndLink(sageObj.id, ticker, { isCanadian: ticker.endsWith('.TO') }, isZh);
+      const fallbackEvidence = getTitanEvidenceAndLink(sageObj.id, ticker, { isCanadian: ticker.endsWith('.TO') }, isZh);
 
-    const item = {
-      sage: sageObj,
-      signal: (v.signal || 'NEUTRAL').toUpperCase(),
-      confidence: v.confidence || 75,
-      provenance: v.provenance || fallbackEvidence.sourceName,
-      sourceName: v.sourceName || fallbackEvidence.sourceName,
-      sourceDataSnippet: v.sourceDataSnippet || fallbackEvidence.sourceDataSnippet,
-      sourceUrl: v.sourceUrl || fallbackEvidence.sourceUrl,
-      quote: v.quote || v.reasoning || '',
-      chainOfThought: v.chainOfThought || [
-        `1. Framework: Evaluated ${ticker} according to core investment parameters.`,
-        `2. Financial Moat: Verified business returns and balance sheet structure.`,
-        `3. Valuation Verdict: Formulated ${v.signal || 'NEUTRAL'} stance with ${v.confidence || 75}% conviction.`
-      ]
-    };
+      let cotList = [];
+      if (Array.isArray(v.chainOfThought)) {
+        cotList = v.chainOfThought.filter(s => typeof s === 'string' && s.trim());
+      } else if (typeof v.chainOfThought === 'string' && v.chainOfThought.trim()) {
+        cotList = v.chainOfThought.split('\n').map(s => s.trim()).filter(Boolean);
+      }
+      if (cotList.length === 0) {
+        cotList = [
+          `1. Framework: Evaluated ${ticker} according to core investment parameters.`,
+          `2. Financial Moat: Verified business returns and balance sheet structure.`,
+          `3. Valuation Verdict: Formulated ${v.signal || 'NEUTRAL'} stance with ${v.confidence || 75}% conviction.`
+        ];
+      }
 
-    parsedResults.push(item);
-    renderMockupSageCard(item, isZh);
+      const item = {
+        sage: sageObj,
+        signal: (v.signal || 'NEUTRAL').toUpperCase(),
+        confidence: v.confidence || 75,
+        provenance: v.provenance || fallbackEvidence.sourceName,
+        sourceName: v.sourceName || fallbackEvidence.sourceName,
+        sourceDataSnippet: v.sourceDataSnippet || fallbackEvidence.sourceDataSnippet,
+        sourceUrl: v.sourceUrl || fallbackEvidence.sourceUrl,
+        quote: v.quote || v.reasoning || '',
+        chainOfThought: cotList
+      };
+
+      parsedResults.push(item);
+      renderMockupSageCard(item, isZh);
+    } catch (cardErr) {
+      console.warn('Error rendering Titan card:', cardErr);
+    }
   });
 
   // Render Data Sources & Citations (including live Google Search web links and engine status)
@@ -1508,9 +1556,10 @@ function renderMockupSageCard(item, isZh) {
   const { sage, signal, confidence, quote, chainOfThought } = item;
   const signalLower = signal.toLowerCase();
   const displayName = isZh ? sage.nameZh : sage.name;
+  const signalIcon = signal === 'BULLISH' ? '▲ ' : (signal === 'BEARISH' ? '▼ ' : '◆ ');
   const signalText = isZh 
-    ? (signal === 'BULLISH' ? '看多 (BULLISH)' : (signal === 'BEARISH' ? '看空 (BEARISH)' : '中性 (NEUTRAL)'))
-    : signal;
+    ? (signal === 'BULLISH' ? '▲ 看多 (BULLISH)' : (signal === 'BEARISH' ? '▼ 看空 (BEARISH)' : '◆ 中性 (NEUTRAL)'))
+    : `${signalIcon}${signal}`;
 
   const card = document.createElement('div');
   card.className = 'mockup-sage-card';
@@ -1563,7 +1612,7 @@ function renderMockupSageCard(item, isZh) {
         </button>
       </div>
       <div class="cot-steps-box hidden">
-        ${(chainOfThought || []).map((step, idx) => `
+        ${(Array.isArray(chainOfThought) ? chainOfThought : []).map((step, idx) => `
           <div class="cot-step-row">
             <span class="cot-step-num">Step ${idx + 1}</span>
             <span class="cot-step-text">${step}</span>
