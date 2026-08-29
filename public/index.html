@@ -76,6 +76,17 @@
         </button>
       </div>
 
+      <!-- Quick Macro Stress-Testing Bar (Right beside / beneath search bar) -->
+      <div class="search-macro-toolbar">
+        <span class="macro-toolbar-label" id="i18nQuickStressLabel">⚡ 宏觀壓力情境:</span>
+        <div class="quick-stress-pills">
+          <button type="button" class="quick-stress-chip" data-scenario-zh="假設大客戶 AI 資本支出削減 30%，評估對營收增速與營業利益率的衝擊" data-scenario-en="Assume top hyperscaler AI capex cut by 30%, evaluate impact on revenue growth and operating margin">📉 Capex 削減 30%</button>
+          <button type="button" class="quick-stress-chip" data-scenario-zh="假設中美先進晶片與供應鏈加徵 25% 關稅，評估毛利率與地緣政治尾部風險" data-scenario-en="Assume 25% tariff on advanced chips and supply chains, evaluate gross margin and geopolitical tail risk">🚨 晶片關稅 +25%</button>
+          <button type="button" class="quick-stress-chip" data-scenario-zh="假設全球陷入深度經濟衰退，終端硬體需求萎縮，評估下行估值防禦能力" data-scenario-en="Assume deep global recession with shrinking hardware demand, evaluate downside valuation floor">🌪️ 深度衰退測試</button>
+          <button type="button" class="quick-stress-chip" data-scenario-zh="假設聯準會重啟降息週期 50bp，評估流動性外溢與成長股估值乘數擴張" data-scenario-en="Assume Fed 50bps rate cut cycle, evaluate liquidity spillover and multiple expansion">🏦 降息 50bp 寬鬆</button>
+        </div>
+      </div>
+
     </header>
 
     <!-- Filter Pills Toolbar -->
@@ -173,6 +184,11 @@
           </div>
         </div>
 
+
+        <!-- 2-Column Duel Showdown View (Toggled via Debate Only) -->
+        <div class="duel-showdown-view hidden" id="duelShowdownView">
+          <!-- Dynamically populated by renderDuelShowdown() -->
+        </div>
 
         <!-- 2-Column Grid of Sage Cards -->
         <div class="sage-cards-grid" id="sageCardsGrid">

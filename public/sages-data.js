@@ -348,8 +348,9 @@ export const I18N = {
     expandAllCoT: "🧠 Expand All CoT",
     collapseAllCoT: "▲ Collapse All CoT",
     macroLabel: "🧪 Macro Stress Scenarios:",
-    debateFocus: "⚔️ Debate Focus",
-    showAllDebate: "⚔️ Show All",
+    quickStressLabel: "⚡ Quick Stress Tests:",
+    debateFocus: "⚔️ Debate Duel",
+    showAllDebate: "⊞ Show All Titans",
     kbdSearchHint: "Press / to search",
     quickSuggestions: "Popular Tickers"
   },
@@ -393,8 +394,9 @@ export const I18N = {
     expandAllCoT: "🧠 展開全部思維鏈",
     collapseAllCoT: "▲ 收起全部思維鏈",
     macroLabel: "🧪 宏觀情境壓力測試:",
-    debateFocus: "⚔️ 爭議焦點",
-    showAllDebate: "⚔️ 顯示全部",
+    quickStressLabel: "⚡ 宏觀壓力情境:",
+    debateFocus: "⚔️ 雙欄頂峰對決",
+    showAllDebate: "⊞ 顯示全部巨頭",
     kbdSearchHint: "按 / 快速搜尋",
     quickSuggestions: "熱門標的"
   }

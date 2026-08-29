@@ -68,7 +68,9 @@ const elements = {
   cotBatchToggleText: document.getElementById('cotBatchToggleText'),
   debateToggleBtn: document.getElementById('debateToggleBtn'),
   debateToggleText: document.getElementById('debateToggleText'),
+  duelShowdownView: document.getElementById('duelShowdownView'),
   i18nMacroLabel: document.getElementById('i18nMacroLabel'),
+  i18nQuickStressLabel: document.getElementById('i18nQuickStressLabel'),
   tickerAutocomplete: document.getElementById('tickerAutocomplete'),
   kbdSearchHint: document.getElementById('kbdSearchHint'),
   mobileStickyPmBar: document.getElementById('mobileStickyPmBar'),
@@ -289,40 +291,25 @@ function attachEventListeners() {
     });
   }
 
-  // Debate Only / Boardroom Dissent Focus Toggle
+  // Debate Only / 2-Column Duel Showdown Toggle
   if (elements.debateToggleBtn) {
     elements.debateToggleBtn.addEventListener('click', () => {
       state.debateOnly = !state.debateOnly;
-      const cards = elements.sageCardsGrid.querySelectorAll('.mockup-sage-card');
+      const isZh = state.language === 'zh';
 
       if (state.debateOnly) {
-        // Expand all CoT boxes to reveal Step 4 cross-examination
-        const cotBoxes = elements.sageCardsGrid.querySelectorAll('.cot-steps-box');
-        const cotBtns = elements.sageCardsGrid.querySelectorAll('.cot-toggle-btn');
-        cotBoxes.forEach(box => box.classList.remove('hidden'));
-        cotBtns.forEach(btn => {
-          btn.classList.add('open');
-          const icon = btn.querySelector('.cot-toggle-icon');
-          if (icon) icon.textContent = '▲';
-        });
-
-        // Highlight cards containing boardroom dissent, dim unanimous ones
-        cards.forEach(card => {
-          const hasDissent = card.querySelector('.cot-step-dissent');
-          if (hasDissent) {
-            card.classList.add('dissent-focus');
-            card.classList.remove('dimmed-card');
-          } else {
-            card.classList.add('dimmed-card');
-            card.classList.remove('dissent-focus');
-          }
-        });
-
+        // Hide full grid, reveal 2-column head-to-head duel
+        if (elements.sageCardsGrid) elements.sageCardsGrid.classList.add('hidden');
+        if (elements.duelShowdownView) {
+          elements.duelShowdownView.classList.remove('hidden');
+          renderDuelShowdown(state.currentAnalysis?.results, state.ticker, isZh);
+          elements.duelShowdownView.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         elements.debateToggleBtn.classList.add('active');
       } else {
-        cards.forEach(card => {
-          card.classList.remove('dimmed-card', 'dissent-focus');
-        });
+        // Restore full 13-titan council grid
+        if (elements.duelShowdownView) elements.duelShowdownView.classList.add('hidden');
+        if (elements.sageCardsGrid) elements.sageCardsGrid.classList.remove('hidden');
         elements.debateToggleBtn.classList.remove('active');
       }
 
@@ -330,7 +317,26 @@ function attachEventListeners() {
     });
   }
 
-  // Macro Scenario Presets
+  // Quick Macro Stress-Testing Chips (Search Bar Area) - One-Click Execution
+  document.querySelectorAll('.quick-stress-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isZh = state.language === 'zh';
+      const scenario = isZh ? chip.dataset.scenarioZh : chip.dataset.scenarioEn;
+      if (elements.instructionsInput) {
+        elements.instructionsInput.value = scenario;
+      }
+      state.instructions = scenario;
+
+      document.querySelectorAll('.quick-stress-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      // Instant 1-click execution to observe titan positioning shift!
+      handleSummon();
+    });
+  });
+
+  // Drawer Macro Scenario Presets
   document.querySelectorAll('.scenario-pill').forEach(pill => {
     pill.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -340,6 +346,7 @@ function attachEventListeners() {
         elements.instructionsInput.value = scenario;
         elements.instructionsInput.focus();
       }
+      state.instructions = scenario;
       if (elements.drawerContent && elements.drawerContent.classList.contains('hidden')) {
         elements.drawerContent.classList.remove('hidden');
         if (elements.drawerToggleBtn) elements.drawerToggleBtn.setAttribute('aria-expanded', 'true');
@@ -441,6 +448,7 @@ function applyLanguage(lang) {
   if (elements.i18nPrintPdf) elements.i18nPrintPdf.textContent = dict.printPdf;
   if (elements.i18nDisclaimer) elements.i18nDisclaimer.textContent = dict.disclaimer;
   if (elements.i18nMacroLabel) elements.i18nMacroLabel.textContent = dict.macroLabel || (isZh ? '🧪 宏觀情境壓力測試:' : '🧪 Macro Stress Scenarios:');
+  if (elements.i18nQuickStressLabel) elements.i18nQuickStressLabel.textContent = dict.quickStressLabel || (isZh ? '⚡ 宏觀壓力情境:' : '⚡ Quick Stress Tests:');
   
   if (elements.kbdSearchHint) {
     elements.kbdSearchHint.title = dict.kbdSearchHint || 'Press / to search';
@@ -1313,6 +1321,10 @@ function renderFullAnalysis(data, ticker) {
     updateDebateButtonText();
   }
 
+  // Reset duel view to hidden on new deliberation
+  if (elements.duelShowdownView) elements.duelShowdownView.classList.add('hidden');
+  if (elements.sageCardsGrid) elements.sageCardsGrid.classList.remove('hidden');
+
   state.currentAnalysis = { ticker, results: parsedResults, data };
 }
 
@@ -1759,6 +1771,101 @@ function renderMockupSageCard(item, isZh) {
   }
 
   elements.sageCardsGrid.appendChild(card);
+}
+
+// 2-Column Duel Showdown Renderer (Debate Only View)
+function renderDuelShowdown(results, ticker, isZh) {
+  if (!elements.duelShowdownView || !results || results.length < 2) return;
+
+  // 1. Find highest confidence BULLISH titan
+  const bullishTitans = results.filter(r => r.signal === 'BULLISH').sort((a, b) => b.confidence - a.confidence);
+  // 2. Find highest confidence BEARISH titan, or skeptical NEUTRAL titan
+  const bearishTitans = results.filter(r => r.signal === 'BEARISH').sort((a, b) => b.confidence - a.confidence);
+  const neutralTitans = results.filter(r => r.signal === 'NEUTRAL').sort((a, b) => a.confidence - b.confidence);
+
+  let bullTitan = bullishTitans[0];
+  let bearTitan = bearishTitans[0] || neutralTitans[0];
+
+  if (!bullTitan) {
+    bullTitan = results[0];
+  }
+  if (!bearTitan || bearTitan.sage.id === bullTitan.sage.id) {
+    bearTitan = results.find(r => r.sage.id !== bullTitan.sage.id) || results[1];
+  }
+
+  const bullName = isZh ? bullTitan.sage.nameZh : bullTitan.sage.name;
+  const bearName = isZh ? bearTitan.sage.nameZh : bearTitan.sage.name;
+
+  const renderSteps = (steps) => {
+    return (Array.isArray(steps) ? steps : []).map((step, idx) => {
+      const isDissent = /董事會質詢|Boardroom Challenge|Dissent|質詢/i.test(step);
+      return `
+        <div class="cot-step-row ${isDissent ? 'cot-step-dissent' : ''}">
+          <span class="cot-step-num ${isDissent ? 'dissent' : ''}">${isDissent ? '⚔️ ' : ''}Step ${idx + 1}</span>
+          <span class="cot-step-text ${isDissent ? 'dissent-text' : ''}">${step}</span>
+        </div>
+      `;
+    }).join('');
+  };
+
+  elements.duelShowdownView.innerHTML = `
+    <div class="duel-banner">
+      <div class="duel-badge">⚔️ ${isZh ? '智囊團頂峰辯論 · 左右雙欄對決' : 'Titan Council Showdown · Head-to-Head Duel'}</div>
+      <h3 class="duel-title">${isZh ? `多空核心分歧：${bullName} VS ${bearName}` : `Bull vs Bear Clash: ${bullName} vs ${bearName}`}</h3>
+      <p class="duel-subtitle">${isZh ? `針對 $${ticker} 的核心估值與成長性，系統自動篩選出觀點分歧最劇烈的兩位大師進行深度雙欄對決論戰` : `Screened the two Titans with the greatest divergence on $${ticker} for a direct head-to-head confrontation.`}</p>
+    </div>
+
+    <div class="duel-columns-container">
+      <!-- Bull Column -->
+      <div class="duel-column duel-bull">
+        <div class="duel-card-header">
+          <div class="duel-avatar avatar-halo-bullish">${bullTitan.sage.fallbackIcon}</div>
+          <div class="duel-titan-meta">
+            <h4 class="duel-titan-name">${bullName}</h4>
+            <span class="mockup-badge-pill badge-bullish">▲ ${isZh ? '看多' : 'BULLISH'} (${bullTitan.confidence}%)</span>
+          </div>
+        </div>
+        <blockquote class="duel-quote">"${bullTitan.quote}"</blockquote>
+        <div class="duel-evidence-box">
+          <div class="duel-evidence-title">${isZh ? '📊 多方關鍵數據論據:' : '📊 Bull Quantitative Evidence:'}</div>
+          <div class="duel-evidence-snippet">${bullTitan.sourceDataSnippet || ''}</div>
+        </div>
+        <div class="duel-cot-steps">
+          <h5>${isZh ? '🧠 多方論證思維鏈:' : '🧠 Bullish Chain of Thought:'}</h5>
+          ${renderSteps(bullTitan.chainOfThought)}
+        </div>
+      </div>
+
+      <!-- Center Clash Divider -->
+      <div class="duel-vs-divider">
+        <div class="vs-circle">VS</div>
+        <div class="vs-line"></div>
+        <div class="vs-clash-badge">⚔️ ${isZh ? '交鋒焦點' : 'Clash Point'}</div>
+      </div>
+
+      <!-- Bear / Skeptical Column -->
+      <div class="duel-column duel-bear">
+        <div class="duel-card-header">
+          <div class="duel-avatar avatar-halo-${bearTitan.signal.toLowerCase()}">${bearTitan.sage.fallbackIcon}</div>
+          <div class="duel-titan-meta">
+            <h4 class="duel-titan-name">${bearName}</h4>
+            <span class="mockup-badge-pill badge-${bearTitan.signal.toLowerCase()}">
+              ${bearTitan.signal === 'BEARISH' ? (isZh ? '▼ 看空' : '▼ BEARISH') : (isZh ? '◆ 防禦/中性' : '◆ NEUTRAL')} (${bearTitan.confidence}%)
+            </span>
+          </div>
+        </div>
+        <blockquote class="duel-quote">"${bearTitan.quote}"</blockquote>
+        <div class="duel-evidence-box">
+          <div class="duel-evidence-title">${isZh ? '📊 空方/防禦關鍵數據論據:' : '📊 Bear/Defensive Quantitative Evidence:'}</div>
+          <div class="duel-evidence-snippet">${bearTitan.sourceDataSnippet || ''}</div>
+        </div>
+        <div class="duel-cot-steps">
+          <h5>${isZh ? '🧠 空方/防禦論證思維鏈:' : '🧠 Bearish Chain of Thought:'}</h5>
+          ${renderSteps(bearTitan.chainOfThought)}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // NOTE: Legacy updatePortfolioManagerSidebar with hardcoded values has been removed.
