@@ -293,13 +293,20 @@ MANDATORY REQUIREMENTS:
 1. Set "livePrice": "${liveData.currency} $${liveData.price.toFixed(2)}" in your JSON output.
 2. You MUST use the exact price of ${liveData.currency} $${liveData.price.toFixed(2)} for all valuation calculations (Entry Zone, Stop Loss, DCF, Margin of Safety). DO NOT invent or estimate a different price.
 3. For each Titan, cite specific figures from the GROUND TRUTH table above in their sourceDataSnippet.
-4. HISTORICAL/DECEASED PERSONA GUARDRAIL — For Benjamin Graham (deceased 1976), Charlie Munger (deceased 2023), and Rakesh Jhunjhunwala (deceased 2022): Generate a SIMULATED analytical assessment applying their documented, published investment philosophies and frameworks to the current financial data above. Do NOT present synthetic text as literal historical statements. Prefix their "quote" field with: "Applying [Name]'s framework:"
+4. TITAN METRIC BINDINGS:
+   * Graham MUST compare live price against the pre-calculated Graham Number ($${liveData.grahamNumber || 'N/A'}).
+   * Burry MUST evaluate the pre-calculated FCF Yield (${fmt(liveData.fcfYieldPct, 2, '%')}) against his 10% deep-value threshold and EV/EBITDA (${fmt(liveData.evEbit, 1, 'x')}).
+   * Lynch MUST cite the PEG ratio (${fmt(liveData.pegRatio, 2)}) against his 1.0 benchmark.
+   * Buffett & Munger MUST evaluate ROE (${fmt(liveData.roe, 1, '%')}) and ROA/ROIC (${fmt(liveData.roic, 1, '%')}) and Debt/Equity (${fmt(liveData.debtToEquity)}).
+   * Taleb MUST evaluate balance sheet liquidity (Total Cash $${liveData.totalCashB ? liveData.totalCashB.toFixed(1) + 'B' : 'N/A'} vs Total Debt $${liveData.totalDebtB ? liveData.totalDebtB.toFixed(1) + 'B' : 'N/A'}) and single-supplier/geopolitical tail risks.
+5. AUTHENTIC PERSONA VOICES:
+   * Speak in each legend's authentic philosophical voice, rhetoric, and distinct mental models.
+   * For historical/deceased legends (Graham, Munger, Jhunjhunwala): Apply their timeless published frameworks directly to current figures without stiff robotic preambles like "Applying my framework:".
 ================================================================================
 ` : `
 Use live market knowledge to retrieve the latest real-time stock price, recent quarterly earnings, revenue growth, operating margin, ROE/ROIC, FCF, and balance sheet figures.
-HISTORICAL/DECEASED PERSONA GUARDRAIL — For Benjamin Graham, Charlie Munger, and Rakesh Jhunjhunwala: Generate a simulated analytical assessment applying their published frameworks. Prefix their quote with "Applying [Name]'s framework:".
+Apply each legend's timeless published frameworks directly to current figures with authentic voice and intellectual rigor.
 `}
-
 
 Sages to consult: ${sages ? sages.join(', ') : 'All 13 Sages (Warren Buffett, Charlie Munger, Benjamin Graham, Peter Lynch, Michael Burry, Cathie Wood, Stanley Druckenmiller, Bill Ackman, Phil Fisher, Nassim Taleb, Mohnish Pabrai, Aswath Damodaran, Rakesh Jhunjhunwala)'}.
 
@@ -308,28 +315,115 @@ ${userDirectives ? 'MANDATORY: Every Titan and the Portfolio Manager MUST explic
 
 Output Language: ${isZh ? 'Traditional Chinese (繁體中文)' : 'English'}.
 
-CRITICAL REQUIREMENTS FOR TITAN-SPECIFIC EVIDENCE & SOURCES:
-- Each Titan MUST cite their own distinct, authentic data source and concrete quantitative data snippet relevant to their methodology.
-  Examples:
-  * Buffett: SEC 10-K Owner Earnings & ROE Breakdown (e.g., "TTM Net Income $X, FCF $Y, ROE Z%, Debt/Equity D")
-  * Munger: ROIC & Capital Allocation Proxy (e.g., "5-yr avg ROIC X%, Pricing Power Gross Margin Y%")
-  * Graham: Balance Sheet Liquidation & Current Ratio (e.g., "Current Ratio X, Net Current Assets vs Debt Y, Graham Number $Z")
-  * Burry: FCF Yield & Short Interest / EV Multiples (e.g., "FCF/EV Yield X%, EV/EBIT Yx, Short Interest Z%")
-  * Wood: 5-Yr Exponential TAM & Innovation R&D (e.g., "AI/Cloud TAM $X Trillion, 5-yr Revenue CAGR Y%, R&D spend $Z")
-  * Druckenmiller: Macro Liquidity & Earnings Revisions (e.g., "Forward EPS revisions +X% over last 90 days, Liquidity tailwinds")
-  * Ackman: 13F Dominant Franchise & Margin Levers (e.g., "Market share #1 at X%, Operating Margin Y%, Catalyst potential")
-  * Fisher: Scuttlebutt & R&D Commercialization (e.g., "R&D as % of Sales X%, Customer retention rate Y%")
-  * Taleb: Debt Maturity & Antifragility Solvency (e.g., "Total Debt $X vs Cash $Y, Single-supplier concentration risk Z")
-  * Pabrai: Dhandho 50% Margin of Safety Screen (e.g., "Downside worst-case floor $X vs current market price $Y")
-  * Damodaran: NYU Stern DCF Valuation & Cost of Capital (e.g., "WACC X%, 10-yr CAGR Y%, Intrinsic DCF value band $Z")
-  * Jhunjhunwala: ROCE & Long-Term Compounding (e.g., "ROCE X%, Domestic market penetration growth Y%")
-  * Canadian (.TO) stocks: Cite SEDAR+ Official Disclosures and TSX Financial Data.
+================================================================================
+THE 13 TITAN ANALYTICAL FRAMEWORKS & STRICT SIGNAL DECISION TREES:
+================================================================================
+1. Warren Buffett (The Oracle of Omaha)
+   - Core: Circle of competence, durable economic moat, capital return, owner earnings.
+   - Signal Rules:
+     * BULLISH: Durable moat + high ROE (>15%) + clean balance sheet (Debt/Equity < 0.5) + clear Margin of Safety (>25% below intrinsic value).
+     * NEUTRAL: Outstanding business and moat, but current market price eliminates the margin of safety (fair value or premium).
+     * BEARISH: Fragile commodity business with no pricing power, high debt, or extreme speculative overvaluation.
+
+2. Charlie Munger (The Mental Models Architect)
+   - Core: Inversion ("what can destroy this business?"), lollapalooza effects, ROIC consistency (>15%), management integrity.
+   - Signal Rules:
+     * BULLISH: Compounding powerhouse with multiple self-reinforcing moats at a fair or attractive price.
+     * NEUTRAL: Superb business quality, but the price already fully embeds its perfection; requires discipline to wait.
+     * BEARISH: Promotional management, accounting complexity, or capital-destroying acquisitions.
+
+3. Benjamin Graham (The Father of Value Investing)
+   - Core: Graham Number = sqrt(22.5 * EPS * BVPS), P/E < 15-20, Current Ratio > 2.0, Long-term debt < Net Current Assets.
+   - Signal Rules:
+     * BULLISH: Passes >= 4 core criteria with Price < Graham Number or deep discount to net-net/book value.
+     * NEUTRAL: Balance sheet is financially solid, but trading substantially above conservative Graham thresholds.
+     * BEARISH: Speculative multiples (P/E > 30, P/B > 5), debt burden, or unproven earnings stability.
+
+4. Peter Lynch (The Ten-Bagger Hunter)
+   - Core: Fast Grower vs. Stalwart classification, PEG Ratio (PEG < 1.0 attractive, PEG > 2.0 dangerous), consumer demand understandability.
+   - Signal Rules:
+     * BULLISH: PEG < 1.0 with secular product demand, expanding gross margins, and manageable debt.
+     * NEUTRAL: Stalwart or predictable grower trading at fair valuation (PEG 1.0 - 1.8).
+     * BEARISH: PEG > 2.0, whisper stock, or cyclical peak earnings masquerading as structural growth.
+
+5. Michael Burry (The Deep Value Contrarian)
+   - Core: Free Cash Flow Yield (FCF / EV > 10% hurdle), EV/EBIT < 8.0x, contrarian setup, debt maturity runway.
+   - Signal Rules:
+     * BULLISH: Double-digit FCF yield + extreme negative sentiment + clean liquidity cushion.
+     * NEUTRAL: Low headline multiples, but secular headwinds threaten terminal cash flows.
+     * BEARISH: Compressed FCF yield (< 4%), historical extreme valuation multiples, or debt-fueled buybacks in a bubble.
+
+6. Cathie Wood (The Disruption Pioneer)
+   - Core: Exponential TAM (>20-25% 5-yr CAGR), convergence of multi-technology platforms (AI, robotics, genomics), R&D intensity.
+   - Signal Rules:
+     * BULLISH: Disruptive platform leader with exponential TAM expansion and winner-take-most scale.
+     * NEUTRAL: High technological promise with unproven unit economics or monetization roadmap.
+     * BEARISH: Incumbent legacy business vulnerable to technological displacement.
+
+7. Stanley Druckenmiller (The Macro Legend)
+   - Core: Macro liquidity, central bank rate cycles, positive earnings revision momentum, 3:1 asymmetric risk/reward.
+   - Signal Rules:
+     * BULLISH: Sector macro tailwinds + positive analyst earnings revisions + liquidity inflows + asymmetric setup.
+     * NEUTRAL: Compelling company fundamentals, but macro liquidity timing is neutral or unfavorable.
+     * BEARISH: Macro headwinds + negative revision cycle + crowded institutional positioning.
+
+8. Bill Ackman (The Activist Investor)
+   - Core: Simple, predictable cash generator with dominant #1/#2 market position, pricing power, activist catalyst.
+   - Signal Rules:
+     * BULLISH: High-barrier dominant business + clear catalyst for multiple re-rating + attractive entry price.
+     * NEUTRAL: Dominant franchise but fully valued with no operational or governance catalyst.
+     * BEARISH: Capital-intensive, commoditized, or entrenched management destroying shareholder value.
+
+9. Phil Fisher (The Scuttlebutt Growth Researcher)
+   - Core: Fisher's 15 points, R&D commercialization efficiency, world-class sales and distribution, executive depth.
+   - Signal Rules:
+     * BULLISH: Exceptional R&D commercialization track record + dominant sales channel + long growth runway.
+     * NEUTRAL: Solid growth, but qualitative scuttlebutt evidence on R&D efficiency or employee retention is mixed.
+     * BEARISH: Stagnant product pipeline, deteriorating customer relations, or high executive turnover.
+
+10. Nassim Nicholas Taleb (Antifragility & Risk Analyst)
+    - Core: Antifragility (gains from volatility), Via Negativa, Skin in the Game, Lindy Effect, Fat-Tail & Black Swan exposure.
+    - Signal Rules:
+      * BULLISH: Robust net cash balance sheet + positive convexity (capped downside, open upside) + high insider ownership.
+      * NEUTRAL: Moderate operational resilience but unhedged single-supplier concentration (e.g., TSMC Taiwan fab reliance).
+      * BEARISH: Heavy leverage, hidden fragility (Turkey problem), extreme vulnerability to tail events.
+
+11. Mohnish Pabrai (Dhandho Value Investor)
+    - Core: "Heads I win, tails I don't lose much", 50% discount to conservative intrinsic value, asset-light compounding.
+    - Signal Rules:
+      * BULLISH: Worst-case downside protected + >50% margin of safety + simple asset-light model.
+      * NEUTRAL: High-quality company, but discount to intrinsic value does not meet the 50% Dhandho requirement.
+      * BEARISH: Downside risk is unquantified or exceeds acceptable capital preservation limits.
+
+12. Aswath Damodaran (The Dean of Valuation)
+    - Core: Story + Numbers = DCF Truth. Revenue CAGR, sustainable operating margin, reinvestment rate, WACC, intrinsic DCF band.
+    - Signal Rules:
+      * BULLISH: Intrinsic DCF value comfortably exceeds market price using conservative baseline assumptions.
+      * NEUTRAL: Fairly valued within the intrinsic DCF confidence band.
+      * BEARISH: Market price embeds unrealistic revenue growth or heroic margin assumptions.
+
+13. Rakesh Jhunjhunwala (The Big Bull)
+    - Core: ROCE > 20% compounding, multi-year secular tailwind, ethical promoter/management, multi-cycle patience.
+    - Signal Rules:
+      * BULLISH: ROCE > 20% + generational market tailwind + ethical management.
+      * NEUTRAL: Sound compounding business, but waiting for an optimal entry multiple.
+      * BEARISH: Structural industry decline, compromised management ethics, or extreme overvaluation.
+
+================================================================================
+CRITICAL BOARDROOM CROSS-EXAMINATION & EVIDENCE:
+================================================================================
+- Each Titan's Chain of Thought MUST feature 3 to 4 comprehensive, multi-sentence steps:
+  1. Moat & Strategic Franchise Analysis (Circle of competence, pricing power, customer switching costs)
+  2. Forensic Quantitative Diagnostic (Exact ROE, ROIC, Gross/Operating margins, FCF, Debt obligations)
+  3. Valuation Test & Margin of Safety (Exact quantitative test: Graham Number, FCF Yield vs 10%, PEG vs 1.0, DCF band)
+  4. Boardroom Challenge & Dissent (Directly contest opposing viewpoints on the council)
+- Portfolio Manager Action MUST be strictly one of: ["ACCUMULATE ON DIPS", "STRONG BUY", "HOLD", "HEDGE & REDUCE", "AVOID"]. DO NOT include any prefix like "Action:" or "執行操作:".
 
 Respond ONLY in valid JSON matching this schema:
 {
   "ticker": "${ticker}",
-  "livePrice": "$XXX.XX",
-  "provenanceSummary": "Live Analysis Grounded in Financial Data",
+  "livePrice": "${liveData ? `${liveData.currency} $${liveData.price.toFixed(2)}` : '$XXX.XX'}",
+  "provenanceSummary": "Live Analysis Grounded in Deterministic Market Data & Titan Methodologies",
   "sources": [
     "Market Data Feeds",
     "SEC EDGAR 10-K / 10-Q Filings",
@@ -343,19 +437,20 @@ Respond ONLY in valid JSON matching this schema:
       "signal": "BULLISH" | "BEARISH" | "NEUTRAL",
       "confidence": 85,
       "sourceName": "SEC EDGAR 10-K (Owner Earnings & ROE)",
-      "sourceDataSnippet": "Actual numbers quoted",
-      "quote": "1-2 sentence core verdict in authentic voice",
+      "sourceDataSnippet": "Actual numbers quoted from verified table",
+      "quote": "Core verdict in authentic rhetorical voice without preamble",
       "chainOfThought": [
-        "1. Competence & Franchise: [1 sentence analysis]",
-        "2. Moat & Returns: [1 sentence analysis with ROE/ROIC]",
-        "3. Margin of Safety: [1 sentence valuation and margin of safety check]"
+        "1. Competence & Franchise: [Multi-sentence in-depth analysis]",
+        "2. Moat & Returns: [Forensic analysis with ROE, ROIC, and margins]",
+        "3. Margin of Safety: [Rigorous valuation and margin of safety check]",
+        "4. Boardroom Challenge: [Challenge or pressure-test opposing board members]"
       ]
     }
   ],
   "riskManager": {
     "consensus": { "bullish": 0, "bearish": 0, "neutral": 0 },
     "weightedConvictionScore": 84,
-    "keyRisks": ["Primary risk 1", "Tail risk 2", "Competitive risk 3"],
+    "keyRisks": ["Primary fundamental risk", "Macro/Tail risk", "Valuation/Competitive risk"],
     "bullCase": "Summary of upside thesis",
     "bearCase": "Summary of downside breakdown",
     "maxPosition": "5% - 8% allocation"
@@ -368,7 +463,7 @@ Respond ONLY in valid JSON matching this schema:
       "entryZone": "$XXX - $YYY",
       "stopLoss": "$ZZZ"
     },
-    "rationale": "Portfolio manager synthesis of council views and macro positioning",
+    "rationale": "Comprehensive portfolio manager synthesis reconciling council divergence and market realities",
     "sourcesCited": [
       "SEC 10-K / 10-Q Disclosures",
       "SEDAR+ Filings",

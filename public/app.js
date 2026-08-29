@@ -1185,7 +1185,8 @@ function renderFullAnalysis(data, ticker) {
   // Consume Portfolio Manager Verdict
   if (data.portfolioManager) {
     const pm = data.portfolioManager;
-    const action = pm.action || 'ACCUMULATE ON DIPS';
+    const rawAction = pm.action || 'ACCUMULATE ON DIPS';
+    const action = String(rawAction).replace(/^(?:執行操作|ACTION):\s*/i, '').trim();
     const conviction = pm.conviction || 'HIGH';
     const horizon = pm.timeHorizon || '2-4 Years';
     const rawExecution = pm.execution || {};
@@ -1754,7 +1755,8 @@ function copyMarkdownReport() {
 
   results.forEach(r => {
     const name = isZh ? r.sage.nameZh : r.sage.name;
-    md += `### ${r.sage.fallbackIcon} ${name} — **${r.signal}** (${r.confidence}% Conviction)\n`;
+    const sigIcon = r.signal === 'BULLISH' ? '▲ ' : (r.signal === 'BEARISH' ? '▼ ' : '◆ ');
+    md += `### ${r.sage.fallbackIcon} ${name} — **${sigIcon}${r.signal}** (${r.confidence}% Conviction)\n`;
     md += `> "${r.quote}"\n\n`;
     if (r.chainOfThought && r.chainOfThought.length > 0) {
       md += `*Chain of Thought*:\n`;
@@ -1765,10 +1767,14 @@ function copyMarkdownReport() {
     }
   });
 
+  const cleanActionText = (elements.actionBadgeBox?.textContent || 'ACTION: HOLD')
+    .replace(/^(?:執行操作|ACTION):\s*/i, '')
+    .trim();
+
   md += `## Portfolio Manager Synthesis\n\n`;
-  md += `- **Action**: ${elements.actionBadgeBox.textContent}\n`;
-  md += `- **Conviction**: ${elements.convictionValueText.textContent}\n`;
-  md += `- **Entry**: ${elements.entryZoneText.textContent} | **Stop Loss**: ${elements.stopLossText.textContent}\n`;
+  md += `- **Action**: ${cleanActionText}\n`;
+  md += `- **Conviction**: ${elements.convictionValueText?.textContent || '--'}\n`;
+  md += `- **Entry**: ${elements.entryZoneText?.textContent || '--'} | **Stop Loss**: ${elements.stopLossText?.textContent || '--'}\n`;
 
   copyTextToClipboard(md).then(() => {
     elements.copyReportBtn.textContent = isZh ? '✅ 已複製!' : '✅ Copied!';
