@@ -134,10 +134,8 @@ async function fetchMarketDataBundle(rawTicker) {
       bundle.marketCapB = marketCapB;
       bundle.eps = eps;
       bundle.bookValuePerShare = bvps;
-      bundle.peRatio = peRatio;
       bundle.forwardPE = forwardPE;
       bundle.pegRatio = pegRatio;
-      bundle.priceToBook = priceToBook;
       bundle.roe = roe ? (roe * 100) : null;
       bundle.roic = roic ? (roic * 100) : null;
       bundle.grossMarginPct = grossMargin ? (grossMargin * 100) : null;
@@ -152,6 +150,25 @@ async function fetchMarketDataBundle(rawTicker) {
       // =========================================================
       // DETERMINISTIC FINANCIAL FORMULA ENGINE (no LLM arithmetic)
       // =========================================================
+
+      // Deterministic P/E and P/B synchronized precisely to the LIVE stock price
+      // Avoids stale Yahoo cached multiples that cause mathematical discrepancies
+      if (bundle.price && eps > 0) {
+        bundle.peRatio = Number((bundle.price / eps).toFixed(2));
+      } else {
+        bundle.peRatio = peRatio;
+      }
+
+      if (bundle.price && bvps > 0) {
+        bundle.priceToBook = Number((bundle.price / bvps).toFixed(2));
+      } else {
+        bundle.priceToBook = priceToBook;
+      }
+
+      // Reconciled PEG Ratio based on live P/E and revenue growth
+      if (bundle.peRatio && bundle.revenueGrowthPct && bundle.revenueGrowthPct > 0) {
+        bundle.pegRatio = Number((bundle.peRatio / bundle.revenueGrowthPct).toFixed(2));
+      }
 
       // Graham Number = sqrt(22.5 × EPS × Book Value Per Share)
       if (eps > 0 && bvps > 0) {
@@ -172,8 +189,8 @@ async function fetchMarketDataBundle(rawTicker) {
 
       // Debt/Equity = Total Debt / Total Shareholder Equity
       // Equity ≈ Market Cap / Price-to-Book (i.e. book value of equity)
-      if (totalDebt && marketCap && priceToBook && priceToBook > 0) {
-        const totalEquity = marketCap / priceToBook;
+      if (totalDebt && marketCap && bundle.priceToBook && bundle.priceToBook > 0) {
+        const totalEquity = marketCap / bundle.priceToBook;
         bundle.debtToEquity = (totalDebt / totalEquity).toFixed(2);
       }
     }
@@ -267,12 +284,12 @@ TTM FCF: ${liveData.fcfB ? `$${liveData.fcfB.toFixed(2)}B` : 'N/A'}
 EBITDA: ${liveData.ebitdaB ? `$${liveData.ebitdaB.toFixed(2)}B` : 'N/A'}
 
 == VALUATION MULTIPLES ==
-P/E Ratio (TTM): ${fmt(liveData.peRatio, 1, 'x')}
+P/E Ratio (TTM): ${fmt(liveData.peRatio, 2, 'x')} (Mathematically Reconciled: Live Price $${liveData.price.toFixed(2)} / EPS $${fmt(liveData.eps)})
 Forward P/E: ${fmt(liveData.forwardPE, 1, 'x')}
 PEG Ratio: ${fmt(liveData.pegRatio, 2)}
-Price/Book: ${fmt(liveData.priceToBook, 2, 'x')}
-EPS (TTM): ${fmt(liveData.eps)}
-Book Value/Share: ${fmt(liveData.bookValuePerShare)}
+Price/Book (P/B): ${fmt(liveData.priceToBook, 2, 'x')} (Mathematically Reconciled: Live Price $${liveData.price.toFixed(2)} / Book Value $${fmt(liveData.bookValuePerShare)})
+EPS (TTM): $${fmt(liveData.eps)}
+Book Value/Share: $${fmt(liveData.bookValuePerShare)}
 
 == BALANCE SHEET ==
 Total Cash: ${liveData.totalCashB ? `$${liveData.totalCashB.toFixed(2)}B` : 'N/A'}
@@ -299,7 +316,12 @@ MANDATORY REQUIREMENTS:
    * Lynch MUST cite the PEG ratio (${fmt(liveData.pegRatio, 2)}) against his 1.0 benchmark.
    * Buffett & Munger MUST evaluate ROE (${fmt(liveData.roe, 1, '%')}) and ROA/ROIC (${fmt(liveData.roic, 1, '%')}) and Debt/Equity (${fmt(liveData.debtToEquity)}).
    * Taleb MUST evaluate balance sheet liquidity (Total Cash $${liveData.totalCashB ? liveData.totalCashB.toFixed(1) + 'B' : 'N/A'} vs Total Debt $${liveData.totalDebtB ? liveData.totalDebtB.toFixed(1) + 'B' : 'N/A'}) and single-supplier/geopolitical tail risks.
-5. AUTHENTIC PERSONA VOICES:
+5. STRICT MATHEMATICAL CONSISTENCY:
+   * When citing P/B or P/E, EVERY Titan MUST use the exact reconciled ratios from the table above:
+     Price/Book (P/B) is EXACTLY ${fmt(liveData.priceToBook, 2, 'x')}.
+     P/E Ratio is EXACTLY ${fmt(liveData.peRatio, 2, 'x')}.
+   * DO NOT hallucinate divergent numbers (e.g. never claim P/B is 25.98x when the table says ${fmt(liveData.priceToBook, 2, 'x')}).
+6. AUTHENTIC PERSONA VOICES:
    * Speak in each legend's authentic philosophical voice, rhetoric, and distinct mental models.
    * For historical/deceased legends (Graham, Munger, Jhunjhunwala): Apply their timeless published frameworks directly to current figures without stiff robotic preambles like "Applying my framework:".
 ================================================================================
@@ -319,18 +341,25 @@ Output Language: ${isZh ? 'Traditional Chinese (繁體中文)' : 'English'}.
 THE 13 TITAN ANALYTICAL FRAMEWORKS & STRICT SIGNAL DECISION TREES:
 ================================================================================
 1. Warren Buffett (The Oracle of Omaha)
-   - Core: Circle of competence, durable economic moat, capital return, owner earnings.
-   - Signal Rules:
-     * BULLISH: Durable moat + high ROE (>15%) + clean balance sheet (Debt/Equity < 0.5) + clear Margin of Safety (>25% below intrinsic value).
-     * NEUTRAL: Outstanding business and moat, but current market price eliminates the margin of safety (fair value or premium).
-     * BEARISH: Fragile commodity business with no pricing power, high debt, or extreme speculative overvaluation.
+   - Core: Circle of competence, durable economic moat (pricing power, high switching costs), owner earnings, capital allocation, and RULE #1: NEVER OVERPAY.
+   - BUFFETT TECH VALUATION & MARGIN OF SAFETY GUARDRAIL:
+     * Buffett recognizes NVIDIA's extraordinary technological moat (CUDA, 75% gross margin, ROE > 100%), but steadfastly refuses to chase semiconductor hardware trading at elevated multiples (P/E > 22x, P/B > 5x) during an AI capex boom.
+     * He knows capital cycles inevitably invite customer capex digestion, margin pressure, or technological obsolescence. "Price is what you pay, value is what you get." When a company's market price fully capitalizes years of flawless compounding, there is zero Margin of Safety.
+     * When evaluating high-multiple market leaders trading at >25x P/E or >10x P/B: Buffett's verdict MUST BE NEUTRAL (Hold / Watchlist with 65-70% conviction), NOT BULLISH. He respects the business, but will NOT buy without an unquestionable margin of safety (>25-30% discount to conservative owner earnings).
+     * Signal Rules:
+       - BULLISH: Wide economic moat + high ROE (>15%) + clean balance sheet (Debt/Equity < 0.5) AND trading at an undeniable discount (>25% margin of safety to conservative intrinsic value).
+       - NEUTRAL: Phenomenal business franchise and moat, but current market price already discounts years of flawless growth, eliminating the margin of safety (Watchlist / Hold on dips).
+       - BEARISH: Fragile commodity business with no pricing power, heavy debt, or egregious speculative mania.
 
 2. Charlie Munger (The Mental Models Architect)
    - Core: Inversion ("what can destroy this business?"), lollapalooza effects, ROIC consistency (>15%), management integrity.
-   - Signal Rules:
-     * BULLISH: Compounding powerhouse with multiple self-reinforcing moats at a fair or attractive price.
-     * NEUTRAL: Superb business quality, but the price already fully embeds its perfection; requires discipline to wait.
-     * BEARISH: Promotional management, accounting complexity, or capital-destroying acquisitions.
+   - MUNGER REALISM GUARDRAIL:
+     * "A great business at an exuberant price is no bargain." While Munger is more willing than Graham to pay for quality, he requires discipline when the market is caught in an AI feeding frenzy.
+     * If P/E > 25x or P/B > 10x, Munger's verdict MUST BE NEUTRAL (Hold / Wait for a better pitch), recognizing that hardware competition, customer capex digestion, and multiple compression pose severe long-term headwinds.
+     * Signal Rules:
+       - BULLISH: Compounding powerhouse with multiple self-reinforcing moats at a fair or attractive price.
+       - NEUTRAL: Superb business quality, but the price already fully embeds its perfection; discipline demands waiting.
+       - BEARISH: Management promotional hype, deceptive accounting, or capital-destroying acquisitions.
 
 3. Benjamin Graham (The Father of Value Investing)
    - Core: Graham Number = sqrt(22.5 * EPS * BVPS), P/E < 15-20, Current Ratio > 2.0, Long-term debt < Net Current Assets.
